@@ -130,15 +130,23 @@ final class CalendarAPIClientTests: XCTestCase {
 
 final class MockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var lastRequest: URLRequest?
+    /// The body of the last request. URLSession hands a protocol its body as a stream, not as
+    /// `httpBody`, so it is read out here.
+    nonisolated(unsafe) static var lastBody: Data?
     nonisolated(unsafe) private static var status = 200
     nonisolated(unsafe) private static var body = Data()
 
     static func reset() {
         lastRequest = nil
+        lastBody = nil
         status = 200
         body = Data()
     }
 
+    /// The last request's JSON body as a dictionary.
+    static var lastJSON: [String: Any]? {
+        lastBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+    }
 
     static func respond(status: Int, body: String) {
         self.status = status
@@ -150,6 +158,18 @@ final class MockURLProtocol: URLProtocol {
 
     override func startLoading() {
         Self.lastRequest = request
+        Self.lastBody = request.httpBody ?? request.httpBodyStream.map { stream in
+            stream.open()
+            defer { stream.close() }
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let read = stream.read(&buffer, maxLength: buffer.count)
+                if read <= 0 { break }
+                data.append(buffer, count: read)
+            }
+            return data
+        }
         let response = HTTPURLResponse(url: request.url!, statusCode: Self.status,
                                        httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)

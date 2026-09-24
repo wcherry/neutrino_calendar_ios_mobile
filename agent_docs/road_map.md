@@ -30,7 +30,7 @@ work and what needs a server epic first.
 |---|---|---|
 | Events CRUD | ✅ | `GET/POST /events`, `GET/PUT/DELETE /events/{id}`. `from`/`to` range query, `allDay`, `location`, `timezone`, `attendees` (emails only) |
 | Recurrence | ⚠️ | The server **stores** an RRULE string and nothing else. The web app expands it client-side (`calendarHelpers.ts`). There is no EXDATE, no per-occurrence override, and no "this and following" edit |
-| Reminders | ✅ | CRUD, `linkedEventId`, `linkedTaskId`, `recurrenceRule`, `completed` |
+| Reminders | ✅ | CRUD, `linkedEventId`, `linkedTaskId`, `recurrenceRule`, `completed`. Completing a recurring reminder moves it to its next occurrence (server-side since Epic 12) |
 | Tasks | ✅ | Lists, reorder, multi-list membership, schedule-to-event, attachments |
 | Attachments | ✅ | Events and tasks, by Drive `file_id` |
 | Connections | ⚠️ | Google and Outlook over OAuth, Apple over CalDAV with an app-specific password. Sync is **pull-only**, triggered by `POST /sync/trigger` |
@@ -302,12 +302,24 @@ A reminder set on the web fires on the phone at the right time, including with t
 
 Goal: parity with the web sidebars.
 
-### ⬜ Epic 12 — Reminders
+### ✅ Epic 12 — Reminders
 
-* ⬜ List, create, edit, complete and delete
-* ⬜ Recurring reminders
-* ⬜ Link to an event or task
-* ⬜ Today / Scheduled / Completed filters
+* ✅ List, create, edit, complete and delete (Reminders tab, `ReminderEditorView`, swipe to
+  delete)
+* ✅ Recurring reminders: Never / Daily / Weekdays / Weekly / Monthly / Yearly, and a rule
+  written elsewhere is kept as it is. **Completing one moves it to its next occurrence on the
+  server** (`neutrino/src/calendar/recurrence.rs`), stepped in the zone the client sends, so the
+  web and iOS behave the same. COUNT counts down on each completion, and the reminder is done
+  when the rule runs out
+* ✅ Link to an event (the event's Reminders section, with the web's presets from "At time of
+  event" to "1 week before", plus Custom) or to a task (picked when creating). Links are set at
+  creation only, because the server's update has no link fields
+* ✅ The web's Today / 3 days / 7 days / All filter, with overdue reminders in every range, plus
+  search, and completed reminders listed after open ones
+* ⬜ Web: the reminder form has no repeat field, so a repeating reminder can only be *made* on
+  iOS or through the API. It completes correctly on the web
+* ⬜ Web: the sidebar lists only unlinked reminders. The iOS tab lists every reminder, since it is
+  the only list a phone has; decide whether the web should follow
 
 ⸻
 

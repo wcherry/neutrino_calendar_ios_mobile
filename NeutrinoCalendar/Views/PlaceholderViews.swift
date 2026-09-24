@@ -3,17 +3,6 @@ import SwiftUI
 // Empty states for the Epic 1 shell. Each one is replaced wholesale by the epic it names in
 // agent_docs/road_map.md, so they stay deliberately thin.
 
-struct RemindersView: View {
-    var body: some View {
-        EmptyStateView(
-            systemImage: "bell",
-            title: "No Reminders",
-            message: "Reminders you create here or on the web will appear here."
-        )
-        .navigationTitle("Reminders")
-    }
-}
-
 struct TasksView: View {
     var body: some View {
         EmptyStateView(
@@ -50,5 +39,5 @@ struct EmptyStateView: View {
 }
 
 #Preview {
-    NavigationStack { RemindersView() }
+    NavigationStack { TasksView() }
 }
