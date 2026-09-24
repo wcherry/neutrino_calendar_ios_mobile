@@ -82,6 +82,7 @@ struct ReminderEditorView: View {
                     }
                 }
             }
+            .densityList()
             .navigationTitle(existing == nil ? "New Reminder" : "Edit Reminder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

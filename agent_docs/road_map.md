@@ -428,6 +428,8 @@ Reuse Neutrino's sharing model.
 * ⬜ Face ID / Touch ID lock (reuse `AppLockService` and `LockScreenView` from Notes, or better,
   promote them into `NeutrinoUI`)
 * ⬜ Search (title, location, description, attendees; offline over the local store)
+* ✅ Compact layout: a Settings switch for tighter rows, section gaps and screen margins (off
+  by default; the section gaps and margins need iOS 17)
 * ⬜ Week-start preference, 24 h clock, week numbers, alternate calendars
 * ⬜ Travel time and "leave now" alerts (MapKit ETA)
 * ⬜ Handoff to the web calendar

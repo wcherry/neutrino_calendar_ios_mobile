@@ -7,6 +7,9 @@ struct CalendarHomeView: View {
     /// The month the list last jumped to today in, so a refresh doesn't yank the list back
     /// while someone is reading further down.
     @State private var scrolledToTodayIn: Date?
+    /// Switching the density rebuilds the list, which puts it back at the 1st; this is watched so
+    /// the rebuilt list jumps to today again.
+    @AppStorage(LayoutDensity.storageKey) private var compactLayout = false
 
     var body: some View {
         content
@@ -16,6 +19,7 @@ struct CalendarHomeView: View {
             .navigationDestination(for: EventOccurrence.self) { EventDetailView(occurrence: $0) }
             .refreshable { await events.reload() }
             .task { await events.reload() }
+            .onChange(of: compactLayout) { _ in scrolledToTodayIn = nil }
     }
 
     @ViewBuilder
@@ -53,6 +57,7 @@ struct CalendarHomeView: View {
                                 NavigationLink(value: occurrence) {
                                     EventRowView(occurrence: occurrence)
                                 }
+                                .densityRow()
                             }
                         } header: {
                             DayHeader(day: section.day)
@@ -61,6 +66,7 @@ struct CalendarHomeView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .densityList()
                 .onAppear { scrollToToday(proxy) }
                 .onChange(of: events.sections) { _ in scrollToToday(proxy) }
             }

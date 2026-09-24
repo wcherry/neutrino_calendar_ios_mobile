@@ -50,6 +50,7 @@ struct RemindersView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .densityList()
         .navigationTitle("Reminders")
         .searchable(text: $search)
         .toolbar {
@@ -68,6 +69,7 @@ struct RemindersView: View {
 
     private func row(_ reminder: Reminder) -> some View {
         ReminderRow(reminder: reminder, taskTitle: reminder.linkedTaskId.flatMap { reminders.taskTitles[$0] })
+            .densityRow()
             .contentShape(Rectangle())
             .onTapGesture { editing = .edit(reminder) }
             .swipeActions {
