@@ -4,11 +4,20 @@ import NeutrinoAuth
 
 struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
+    @AppStorage(LayoutDensity.storageKey) private var compactLayout = false
 
     var body: some View {
         List {
             Section("Account") {
                 LabeledContent("Server", value: NeutrinoStorage.serverHost)
+            }
+
+            Section {
+                Toggle("Compact layout", isOn: $compactLayout)
+            } header: {
+                Text("Display")
+            } footer: {
+                Text("Less space around rows, sections and the edges of the screen, so more fits at once.")
             }
 
             // Filled by Epic 17: Google and Outlook over OAuth, iCloud over CalDAV.
@@ -31,6 +40,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .densityList()
         .navigationTitle("Settings")
     }
 }

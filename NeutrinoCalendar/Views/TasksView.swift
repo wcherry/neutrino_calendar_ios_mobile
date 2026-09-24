@@ -55,6 +55,7 @@ struct TasksView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .densityList()
         .navigationTitle("Tasks")
         .navigationDestination(for: TaskRoute.self) { TaskDetailView(taskID: $0.id) }
         .toolbar {
@@ -71,6 +72,7 @@ struct TasksView: View {
         NavigationLink(value: TaskRoute(id: task.id)) {
             TaskRow(task: task)
         }
+        .densityRow()
     }
 
     private func move(from source: IndexSet, to destination: Int) {

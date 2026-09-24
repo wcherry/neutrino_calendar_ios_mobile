@@ -52,6 +52,7 @@ struct TaskDetailView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .densityList()
         .navigationTitle("Task")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -104,6 +105,7 @@ struct TaskDetailView: View {
         Section("Reminders") {
             ForEach(reminders.reminders(forTask: task.id)) { reminder in
                 ReminderRow(reminder: reminder, showsLink: false)
+                    .densityRow()
                     .swipeActions {
                         Button(role: .destructive) { Task { await reminders.delete(reminder) } } label: {
                             Label("Delete", systemImage: "trash")

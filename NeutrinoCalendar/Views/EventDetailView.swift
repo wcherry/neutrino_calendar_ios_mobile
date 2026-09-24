@@ -73,6 +73,7 @@ struct EventDetailView: View {
 
             attachmentsSection
         }
+        .densityList()
         .navigationTitle("Event")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: event.id) { await loadAttachments() }
@@ -91,6 +92,7 @@ struct EventDetailView: View {
         Section("Reminders") {
             ForEach(eventReminders) { reminder in
                 ReminderRow(reminder: reminder, showsLink: false)
+                    .densityRow()
                     .swipeActions {
                         Button(role: .destructive) { Task { await reminders.delete(reminder) } } label: {
                             Label("Delete", systemImage: "trash")
