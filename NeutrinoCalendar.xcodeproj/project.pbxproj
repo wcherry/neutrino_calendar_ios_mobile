@@ -1,0 +1,515 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00EBE8E62FAC375AD2C7658E /* NeutrinoCalendarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F107C6753FB215BC748436F /* NeutrinoCalendarApp.swift */; };
+		0A0A40C0E15320CE243BE85F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 43C00B52838A7AFAF0C5E886 /* Assets.xcassets */; };
+		101C307335FCB9729DE1B9A0 /* NeutrinoUI in Frameworks */ = {isa = PBXBuildFile; productRef = B6A55CBE3D0012AE9B33EF9B /* NeutrinoUI */; };
+		16C755BEBBF485E02AC11BBA /* ReportBugButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67EFAE492E04F1B11E3ECB1F /* ReportBugButton.swift */; };
+		240A245C238F2E043B095B2B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F01651465650162BC2F2D2 /* SettingsView.swift */; };
+		3B61A13A72495542504CDF21 /* BugReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C46C51EF8C7099A547126BDE /* BugReportTests.swift */; };
+		874A38B058E80642C4C3A21C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2816EB0C95053AA2FD1786 /* ContentView.swift */; };
+		98CF3843239229D4A91C06FE /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A14F821F815BC8BE459D4FD /* FeatureFlags.swift */; };
+		A3D0B335FAD40146CF132959 /* NeutrinoAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 20CD14C92E6EF8CD50ABD24A /* NeutrinoAuth */; };
+		A902C359CEA6D91622A071E9 /* PlaceholderViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE782AEC1B7C9318120BA29 /* PlaceholderViews.swift */; };
+		B369D156C68834BA940B1EBA /* NeutrinoCore in Frameworks */ = {isa = PBXBuildFile; productRef = F09C72A306B3DB398526B07D /* NeutrinoCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		3B905B7373D2F1110E8ED3AC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1AC725E055985010D617B1F9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6CA8BC6222D19E26DE2A5686;
+			remoteInfo = NeutrinoCalendar;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		06F09C55970CC10BED9DB140 /* NeutrinoCalendarTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NeutrinoCalendarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A14F821F815BC8BE459D4FD /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
+		0B640AC312063BA4DD3BCBC5 /* NeutrinoCalendar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NeutrinoCalendar.entitlements; sourceTree = "<group>"; };
+		0BE782AEC1B7C9318120BA29 /* PlaceholderViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderViews.swift; sourceTree = "<group>"; };
+		14BCF32FA6983DA545B86C03 /* NeutrinoCalendar.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NeutrinoCalendar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		43C00B52838A7AFAF0C5E886 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		52ECFC092015E613479B752B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		67EFAE492E04F1B11E3ECB1F /* ReportBugButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportBugButton.swift; sourceTree = "<group>"; };
+		6AA039A95308F78DCEA000F4 /* neutrino_shared_ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = neutrino_shared_ios; path = ../neutrino_shared_ios; sourceTree = SOURCE_ROOT; };
+		71F01651465650162BC2F2D2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		8A2816EB0C95053AA2FD1786 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		9F107C6753FB215BC748436F /* NeutrinoCalendarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeutrinoCalendarApp.swift; sourceTree = "<group>"; };
+		C46C51EF8C7099A547126BDE /* BugReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BugReportTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A1A23343A334E415B4C2B8FA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B369D156C68834BA940B1EBA /* NeutrinoCore in Frameworks */,
+				A3D0B335FAD40146CF132959 /* NeutrinoAuth in Frameworks */,
+				101C307335FCB9729DE1B9A0 /* NeutrinoUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		10DA6D412B7992C8A6D00417 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				14BCF32FA6983DA545B86C03 /* NeutrinoCalendar.app */,
+				06F09C55970CC10BED9DB140 /* NeutrinoCalendarTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		675FEA0383CDC8EAA8186636 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				0BE782AEC1B7C9318120BA29 /* PlaceholderViews.swift */,
+				67EFAE492E04F1B11E3ECB1F /* ReportBugButton.swift */,
+				71F01651465650162BC2F2D2 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		7260266030A46FB9BBC4A3B9 /* NeutrinoCalendar */ = {
+			isa = PBXGroup;
+			children = (
+				43C00B52838A7AFAF0C5E886 /* Assets.xcassets */,
+				8A2816EB0C95053AA2FD1786 /* ContentView.swift */,
+				52ECFC092015E613479B752B /* Info.plist */,
+				0B640AC312063BA4DD3BCBC5 /* NeutrinoCalendar.entitlements */,
+				9F107C6753FB215BC748436F /* NeutrinoCalendarApp.swift */,
+				D9599FEE6F6C49E9554C0982 /* Config */,
+				675FEA0383CDC8EAA8186636 /* Views */,
+			);
+			path = NeutrinoCalendar;
+			sourceTree = "<group>";
+		};
+		A0E9959039F2B36918805844 /* NeutrinoCalendarTests */ = {
+			isa = PBXGroup;
+			children = (
+				C46C51EF8C7099A547126BDE /* BugReportTests.swift */,
+			);
+			path = NeutrinoCalendarTests;
+			sourceTree = "<group>";
+		};
+		CF53E97910E0B20308303BEC = {
+			isa = PBXGroup;
+			children = (
+				7260266030A46FB9BBC4A3B9 /* NeutrinoCalendar */,
+				A0E9959039F2B36918805844 /* NeutrinoCalendarTests */,
+				DACDF2ABC700050FDFADD53C /* Packages */,
+				10DA6D412B7992C8A6D00417 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D9599FEE6F6C49E9554C0982 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				0A14F821F815BC8BE459D4FD /* FeatureFlags.swift */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		DACDF2ABC700050FDFADD53C /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				6AA039A95308F78DCEA000F4 /* neutrino_shared_ios */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6CA8BC6222D19E26DE2A5686 /* NeutrinoCalendar */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C080798282A5FEA39856C068 /* Build configuration list for PBXNativeTarget "NeutrinoCalendar" */;
+			buildPhases = (
+				1F29DDAF591949FDA0F8008A /* Sources */,
+				18A6C4BC4DAF9A6CFDACDA13 /* Resources */,
+				A1A23343A334E415B4C2B8FA /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NeutrinoCalendar;
+			packageProductDependencies = (
+				F09C72A306B3DB398526B07D /* NeutrinoCore */,
+				20CD14C92E6EF8CD50ABD24A /* NeutrinoAuth */,
+				B6A55CBE3D0012AE9B33EF9B /* NeutrinoUI */,
+			);
+			productName = NeutrinoCalendar;
+			productReference = 14BCF32FA6983DA545B86C03 /* NeutrinoCalendar.app */;
+			productType = "com.apple.product-type.application";
+		};
+		9C0A9E558F9867F0D035941B /* NeutrinoCalendarTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C27DA49D044B9F911C07865B /* Build configuration list for PBXNativeTarget "NeutrinoCalendarTests" */;
+			buildPhases = (
+				88C198237CFFDA7661F6D4AE /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				032F5EAA1F252AB33F3A8621 /* PBXTargetDependency */,
+			);
+			name = NeutrinoCalendarTests;
+			packageProductDependencies = (
+			);
+			productName = NeutrinoCalendarTests;
+			productReference = 06F09C55970CC10BED9DB140 /* NeutrinoCalendarTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1AC725E055985010D617B1F9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					6CA8BC6222D19E26DE2A5686 = {
+						DevelopmentTeam = 46KWJJ63FU;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 5F7C3E50A1CF18DB0255EFF4 /* Build configuration list for PBXProject "NeutrinoCalendar" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = CF53E97910E0B20308303BEC;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D09EC7B28C029B28E9AF885F /* XCLocalSwiftPackageReference "../neutrino_shared_ios" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6CA8BC6222D19E26DE2A5686 /* NeutrinoCalendar */,
+				9C0A9E558F9867F0D035941B /* NeutrinoCalendarTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		18A6C4BC4DAF9A6CFDACDA13 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0A0A40C0E15320CE243BE85F /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1F29DDAF591949FDA0F8008A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				874A38B058E80642C4C3A21C /* ContentView.swift in Sources */,
+				98CF3843239229D4A91C06FE /* FeatureFlags.swift in Sources */,
+				00EBE8E62FAC375AD2C7658E /* NeutrinoCalendarApp.swift in Sources */,
+				A902C359CEA6D91622A071E9 /* PlaceholderViews.swift in Sources */,
+				16C755BEBBF485E02AC11BBA /* ReportBugButton.swift in Sources */,
+				240A245C238F2E043B095B2B /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		88C198237CFFDA7661F6D4AE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3B61A13A72495542504CDF21 /* BugReportTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		032F5EAA1F252AB33F3A8621 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6CA8BC6222D19E26DE2A5686 /* NeutrinoCalendar */;
+			targetProxy = 3B905B7373D2F1110E8ED3AC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		28243D214E52185804E5059E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.neutrino.NeutrinoCalendarTests;
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NeutrinoCalendar.app/NeutrinoCalendar";
+			};
+			name = Debug;
+		};
+		57E95955FFC2830E8346916C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		7BA56A9CA394D1C2AC77F165 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = NeutrinoCalendar/NeutrinoCalendar.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 46KWJJ63FU;
+				INFOPLIST_FILE = NeutrinoCalendar/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.neutrino.calendar;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		7C37884DC078EE7F623A8746 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		84ECFBD76D14AB23A5DBB2D5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = NeutrinoCalendar/NeutrinoCalendar.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 46KWJJ63FU;
+				INFOPLIST_FILE = NeutrinoCalendar/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.neutrino.calendar;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9EB8E88BC6A621FDFE81A320 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.neutrino.NeutrinoCalendarTests;
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NeutrinoCalendar.app/NeutrinoCalendar";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5F7C3E50A1CF18DB0255EFF4 /* Build configuration list for PBXProject "NeutrinoCalendar" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				57E95955FFC2830E8346916C /* Debug */,
+				7C37884DC078EE7F623A8746 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C080798282A5FEA39856C068 /* Build configuration list for PBXNativeTarget "NeutrinoCalendar" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				84ECFBD76D14AB23A5DBB2D5 /* Debug */,
+				7BA56A9CA394D1C2AC77F165 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C27DA49D044B9F911C07865B /* Build configuration list for PBXNativeTarget "NeutrinoCalendarTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				28243D214E52185804E5059E /* Debug */,
+				9EB8E88BC6A621FDFE81A320 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D09EC7B28C029B28E9AF885F /* XCLocalSwiftPackageReference "../neutrino_shared_ios" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../neutrino_shared_ios;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		20CD14C92E6EF8CD50ABD24A /* NeutrinoAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NeutrinoAuth;
+		};
+		B6A55CBE3D0012AE9B33EF9B /* NeutrinoUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NeutrinoUI;
+		};
+		F09C72A306B3DB398526B07D /* NeutrinoCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NeutrinoCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 1AC725E055985010D617B1F9 /* Project object */;
+}

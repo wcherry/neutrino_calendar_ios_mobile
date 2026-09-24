@@ -1,0 +1,88 @@
+name: NeutrinoCalendar
+packages:
+  # The code shared with the other Neutrino iOS apps: account identity, the
+  # OAuth/PKCE flow, the E2EE key lifecycle and the sign-in screens.
+  #
+  # A local path, so the two repositories have to sit side by side. Swap this for
+  # `url:` + `from:` once neutrino_shared_ios is pushed and tagged.
+  NeutrinoShared:
+    path: ../neutrino_shared_ios
+options:
+  bundleIdPrefix: com.neutrino
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "16"
+
+targets:
+  NeutrinoCalendar:
+    type: application
+    platform: iOS
+    sources:
+      - path: NeutrinoCalendar
+    dependencies:
+      - package: NeutrinoShared
+        product: NeutrinoCore
+      - package: NeutrinoShared
+        product: NeutrinoAuth
+      - package: NeutrinoShared
+        product: NeutrinoUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.neutrino.calendar
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        DEVELOPMENT_TEAM: "46KWJJ63FU"
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    entitlements:
+      path: NeutrinoCalendar/NeutrinoCalendar.entitlements
+      properties:
+        # Cross-app Keychain access group, declared by every Neutrino app. Holds the identity
+        # keyring and nothing else — sessions stay namespaced per app. Calendar has no encrypted
+        # content yet, but attachments are Drive files and will need the keyring (Epic 14).
+        keychain-access-groups:
+          # This app's own group first, and it must stay first: the *default* access group — where
+          # an item written without an explicit group lands — is the first entry in this list.
+          # Left implicit, the shared group below would become the default and this app's tokens
+          # would land in a container the other apps can read.
+          - $(AppIdentifierPrefix)$(CFBundleIdentifier)
+          - $(AppIdentifierPrefix)com.neutrino.shared
+        # No `applinks:` yet. `/open/event/<id>` has to be added to the apple-app-site-association
+        # document in the Drive repository first; see agent_docs/road_map.md.
+    info:
+      path: NeutrinoCalendar/Info.plist
+      properties:
+        CFBundleName: Calendar
+        CFBundleDisplayName: Calendar
+        # Without these, xcodegen writes literal "1.0"/"1" into Info.plist and the
+        # MARKETING_VERSION / CURRENT_PROJECT_VERSION build settings are ignored.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+
+  NeutrinoCalendarTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: NeutrinoCalendarTests
+    dependencies:
+      - target: NeutrinoCalendar
+    settings:
+      base:
+        SWIFT_VERSION: "5.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_STRICT_CONCURRENCY: minimal
