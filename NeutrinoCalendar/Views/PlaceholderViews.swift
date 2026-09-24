@@ -3,29 +3,6 @@ import SwiftUI
 // Empty states for the Epic 1 shell. Each one is replaced wholesale by the epic it names in
 // agent_docs/road_map.md, so they stay deliberately thin.
 
-struct CalendarHomeView: View {
-    var body: some View {
-        EmptyStateView(
-            systemImage: "calendar",
-            title: "No Events Yet",
-            message: "Your Neutrino calendar will appear here, including events from connected "
-                + "Google, Outlook and iCloud calendars."
-        )
-        .navigationTitle("Calendar")
-    }
-}
-
-struct RemindersView: View {
-    var body: some View {
-        EmptyStateView(
-            systemImage: "bell",
-            title: "No Reminders",
-            message: "Reminders you create here or on the web will appear here."
-        )
-        .navigationTitle("Reminders")
-    }
-}
-
 struct TasksView: View {
     var body: some View {
         EmptyStateView(
@@ -62,5 +39,5 @@ struct EmptyStateView: View {
 }
 
 #Preview {
-    NavigationStack { CalendarHomeView() }
+    NavigationStack { TasksView() }
 }

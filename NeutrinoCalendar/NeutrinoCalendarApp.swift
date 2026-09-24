@@ -10,14 +10,20 @@ struct NeutrinoCalendarApp: App {
     // `NeutrinoApp.current` the moment they are constructed.
     @StateObject private var authService: AuthService
     @StateObject private var networkMonitor: NetworkMonitor
+    @StateObject private var eventsService: EventsService
+    @StateObject private var remindersService: RemindersService
 
     init() {
         // Before anything else. Everything the shared package writes is namespaced `ncal.*`.
         NeutrinoApp.configure(.calendar)
         NeutrinoBrand.use(.calendar)
 
-        _authService = StateObject(wrappedValue: AuthService())
+        let authService = AuthService()
+        _authService = StateObject(wrappedValue: authService)
         _networkMonitor = StateObject(wrappedValue: NetworkMonitor())
+        let client = CalendarAPIClient(authService: authService)
+        _eventsService = StateObject(wrappedValue: EventsService(client: client))
+        _remindersService = StateObject(wrappedValue: RemindersService(client: client))
     }
 
     var body: some Scene {
@@ -25,6 +31,8 @@ struct NeutrinoCalendarApp: App {
             RootContentView()
                 .environmentObject(authService)
                 .environmentObject(networkMonitor)
+                .environmentObject(eventsService)
+                .environmentObject(remindersService)
         }
     }
 }
@@ -34,6 +42,8 @@ struct NeutrinoCalendarApp: App {
 /// Switches between the sign-in screen and the app, and keeps the session alive across launches.
 private struct RootContentView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var eventsService: EventsService
+    @EnvironmentObject var remindersService: RemindersService
 
     var body: some View {
         Group {
@@ -46,6 +56,12 @@ private struct RootContentView: View {
         .task {
             if authService.isAuthenticated {
                 await authService.refreshTokenIfNeeded()
+            }
+        }
+        .onChange(of: authService.isAuthenticated) { isAuthenticated in
+            if !isAuthenticated {
+                eventsService.reset()
+                remindersService.reset()
             }
         }
     }
