@@ -121,7 +121,8 @@ Features
 * ✅ Settings (server, version, the "Report a Bug" button from Notes, Sign Out)
 * ✅ Empty states
 * ✅ Brand (purple into pink, `calendar` symbol) and home-screen name "Calendar"
-* ⬜ App icon artwork (`AppIcon.appiconset` has no image yet)
+* ✅ App icon artwork: the brand's purple-into-pink gradient with the `calendar` symbol, in the
+  same geometry as the Notes and Slides icons (full bleed, no alpha, mark 558 px of 1024)
 
 Milestone
 
