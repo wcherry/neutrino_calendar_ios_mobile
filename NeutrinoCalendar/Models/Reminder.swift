@@ -78,16 +78,6 @@ struct UpdateReminderRequest: Encodable, Equatable {
     var timezone: String?
 }
 
-// MARK: - CalendarTask
-
-/// The part of `GET /api/v1/calendar/tasks` a reminder needs: enough to pick a task to link to and
-/// to name it afterwards. Tasks proper are Epic 13.
-struct CalendarTask: Decodable, Identifiable, Hashable {
-    let id: String
-    let title: String
-    let done: Bool
-}
-
 // MARK: - ReminderRange
 
 /// The web's reminder filter (`REMINDER_RANGES` in `calendarHelpers.ts`).

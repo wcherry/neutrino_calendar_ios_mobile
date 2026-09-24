@@ -3,8 +3,19 @@ import SwiftUI
 /// Creates or edits one reminder.
 struct ReminderEditorView: View {
 
+    /// What a new reminder belongs to. Fixed for its lifetime: the server's update has no link
+    /// fields.
+    enum ReminderLink {
+        case none
+        case event(String)
+        case task(CalendarTask)
+
+        var eventID: String? { if case .event(let id) = self { return id }; return nil }
+        var task: CalendarTask? { if case .task(let task) = self { return task }; return nil }
+    }
+
     enum Mode: Identifiable {
-        case create(eventID: String?, due: Date?)
+        case create(link: ReminderLink, due: Date?)
         case edit(Reminder)
 
         var id: String {
@@ -92,9 +103,11 @@ struct ReminderEditorView: View {
     @ViewBuilder
     private var linkSection: some View {
         switch mode {
-        case .create(let eventID, _) where eventID != nil:
+        case .create(.event, _):
             EmptyView()
-        case .create:
+        case .create(.task(let task), _):
+            Section { Label(task.title, systemImage: "checklist") }
+        case .create(.none, _):
             if !tasks.isEmpty {
                 Section {
                     Picker("Task", selection: $task) {
@@ -136,7 +149,9 @@ struct ReminderEditorView: View {
             title = reminder.title
             due = reminder.due
             repeatOption = RepeatOption(rule: reminder.recurrenceRule)
-        case .create(_, let suggested):
+        case .create(let link, let suggested):
+            // The web titles a task's reminder after the task when none is given.
+            if let task = link.task { title = task.title }
             // The web's default: the top of the next hour.
             due = suggested ?? Calendar.current.nextDate(after: Date(), matching: DateComponents(minute: 0),
                                                          matchingPolicy: .nextTime) ?? Date()
@@ -144,7 +159,7 @@ struct ReminderEditorView: View {
     }
 
     private func loadTasksIfLinkable() async {
-        guard case .create(nil, _) = mode else { return }
+        guard case .create(.none, _) = mode else { return }
         tasks = (try? await reminders.tasks()) ?? []
     }
 
@@ -154,9 +169,9 @@ struct ReminderEditorView: View {
         defer { isSaving = false }
         do {
             switch mode {
-            case .create(let eventID, _):
+            case .create(let link, _):
                 try await reminders.create(title: trimmedTitle, due: due, rule: repeatOption.rule,
-                                           eventID: eventID, task: task)
+                                           eventID: link.eventID, task: link.task ?? task)
             case .edit(let reminder):
                 try await reminders.update(reminder, title: trimmedTitle, due: due, rule: repeatOption.rule)
             }

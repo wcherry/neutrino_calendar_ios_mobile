@@ -130,6 +130,10 @@ final class CalendarAPIClientTests: XCTestCase {
 
 final class MockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var lastRequest: URLRequest?
+    /// Every request since the last reset, oldest first.
+    nonisolated(unsafe) static var requests: [URLRequest] = []
+    /// Answers given in order, one per request, before falling back to `respond(status:body:)`.
+    nonisolated(unsafe) private static var queue: [(status: Int, body: Data)] = []
     /// The body of the last request. URLSession hands a protocol its body as a stream, not as
     /// `httpBody`, so it is read out here.
     nonisolated(unsafe) static var lastBody: Data?
@@ -138,6 +142,8 @@ final class MockURLProtocol: URLProtocol {
 
     static func reset() {
         lastRequest = nil
+        requests = []
+        queue = []
         lastBody = nil
         status = 200
         body = Data()
@@ -146,6 +152,11 @@ final class MockURLProtocol: URLProtocol {
     /// The last request's JSON body as a dictionary.
     static var lastJSON: [String: Any]? {
         lastBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+    }
+
+    /// Queues answers for the next requests, in order.
+    static func respondInSequence(_ answers: [(Int, String)]) {
+        queue = answers.map { (status: $0.0, body: Data($0.1.utf8)) }
     }
 
     static func respond(status: Int, body: String) {
@@ -170,10 +181,12 @@ final class MockURLProtocol: URLProtocol {
             }
             return data
         }
-        let response = HTTPURLResponse(url: request.url!, statusCode: Self.status,
+        Self.requests.append(request)
+        let answer = Self.queue.isEmpty ? (status: Self.status, body: Self.body) : Self.queue.removeFirst()
+        let response = HTTPURLResponse(url: request.url!, statusCode: answer.status,
                                        httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Self.body)
+        client?.urlProtocol(self, didLoad: answer.body)
         client?.urlProtocolDidFinishLoading(self)
     }
 

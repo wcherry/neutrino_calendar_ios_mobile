@@ -34,6 +34,10 @@ final class RemindersService: ObservableObject {
         reminders.filter { $0.linkedEventId == eventID }.sorted(by: Self.byDue)
     }
 
+    func reminders(forTask taskID: String) -> [Reminder] {
+        reminders.filter { $0.linkedTaskId == taskID }.sorted(by: Self.byDue)
+    }
+
     /// What the Reminders tab shows: open reminders first, soonest due first, then completed ones.
     ///
     /// Unlike the web's sidebar, which lists only unlinked reminders because an event's own appear

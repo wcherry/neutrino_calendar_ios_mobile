@@ -90,7 +90,7 @@ struct EventDetailView: View {
     private var remindersSection: some View {
         Section("Reminders") {
             ForEach(eventReminders) { reminder in
-                ReminderRow(reminder: reminder)
+                ReminderRow(reminder: reminder, showsLink: false)
                     .swipeActions {
                         Button(role: .destructive) { Task { await reminders.delete(reminder) } } label: {
                             Label("Delete", systemImage: "trash")
@@ -102,7 +102,7 @@ struct EventDetailView: View {
                     Button(preset.label) { Task { await add(preset) } }
                 }
                 Divider()
-                Button("Custom…") { customReminder = .create(eventID: event.id, due: occurrence.start) }
+                Button("Custom…") { customReminder = .create(link: .event(event.id), due: occurrence.start) }
             } label: {
                 // Full width: a menu in a list row answers only on its label, so without this a
                 // tap on the empty right-hand side of the row does nothing.
