@@ -316,10 +316,10 @@ Goal: parity with the web sidebars.
   creation only, because the server's update has no link fields
 * ✅ The web's Today / 3 days / 7 days / All filter, with overdue reminders in every range, plus
   search, and completed reminders listed after open ones
-* ⬜ Web: the reminder form has no repeat field, so a repeating reminder can only be *made* on
-  iOS or through the API. It completes correctly on the web
-* ⬜ Web: the sidebar lists only unlinked reminders. The iOS tab lists every reminder, since it is
-  the only list a phone has; decide whether the web should follow
+* ✅ Web: the reminder form has the same repeat choices as the event form (`REPEAT_OPTIONS`),
+  and keeps a rule it has no choice for rather than rewriting it
+* ✅ Web: the sidebar lists every reminder, as the iOS tab does, labelling the ones that belong to
+  an event or a task and marking the repeating ones
 
 ⸻
 
