@@ -10,14 +10,19 @@ struct NeutrinoCalendarApp: App {
     // `NeutrinoApp.current` the moment they are constructed.
     @StateObject private var authService: AuthService
     @StateObject private var networkMonitor: NetworkMonitor
+    @StateObject private var eventsService: EventsService
 
     init() {
         // Before anything else. Everything the shared package writes is namespaced `ncal.*`.
         NeutrinoApp.configure(.calendar)
         NeutrinoBrand.use(.calendar)
 
-        _authService = StateObject(wrappedValue: AuthService())
+        let authService = AuthService()
+        _authService = StateObject(wrappedValue: authService)
         _networkMonitor = StateObject(wrappedValue: NetworkMonitor())
+        _eventsService = StateObject(wrappedValue: EventsService(
+            client: CalendarAPIClient(authService: authService)
+        ))
     }
 
     var body: some Scene {
@@ -25,6 +30,7 @@ struct NeutrinoCalendarApp: App {
             RootContentView()
                 .environmentObject(authService)
                 .environmentObject(networkMonitor)
+                .environmentObject(eventsService)
         }
     }
 }
@@ -34,6 +40,7 @@ struct NeutrinoCalendarApp: App {
 /// Switches between the sign-in screen and the app, and keeps the session alive across launches.
 private struct RootContentView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var eventsService: EventsService
 
     var body: some View {
         Group {
@@ -47,6 +54,9 @@ private struct RootContentView: View {
             if authService.isAuthenticated {
                 await authService.refreshTokenIfNeeded()
             }
+        }
+        .onChange(of: authService.isAuthenticated) { isAuthenticated in
+            if !isAuthenticated { eventsService.reset() }
         }
     }
 }

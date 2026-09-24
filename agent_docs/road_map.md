@@ -86,9 +86,9 @@ The Calendar app should not maintain a separate backend.
 **Local store.** Events, reminders, tasks, connection metadata and a sync queue. It keeps a range
 window, for example 3 months back and 12 months ahead, rather than all of history.
 
-**Recurrence engine.** RFC 5545 RRULE expansion on the device. It must agree with the web's
-`calendarHelpers.ts` expansion, and a shared test-vector file should pin both, the same way E2EE
-is pinned across its three implementations.
+**Recurrence engine.** RRULE expansion on the device (`RecurrenceExpander`). It agrees with the
+web's `calendarHelpers.ts` expansion case for case, pinned by vectors generated from the web's
+own code; see Epic 3 for where both depart from RFC 5545.
 
 **Sync engine.** Range pulls, a queued offline write-back, conflict detection on `updatedAt`, and
 background refresh.
@@ -149,16 +149,38 @@ Users stay signed in after the app restarts, and co-installed Neutrino apps keep
 
 ⸻
 
-### ⬜ Epic 3 — Calendar Read
+### ✅ Epic 3 — Calendar Read
 
 Features
 
-* ⬜ Fetch events by range (`GET /events?from&to`)
-* ⬜ Client-side RRULE expansion (DAILY/WEEKLY/MONTHLY/YEARLY, INTERVAL, COUNT, UNTIL, BYDAY)
-* ⬜ Time-zone-correct display (stored UTC + the event's `timezone`)
-* ⬜ All-day events
-* ⬜ Events from connected providers, badged by `source`
-* ⬜ Event detail: time, location, description, attendees, attachments
+* ✅ Fetch events by range (`GET /api/v1/calendar/events?from&to`), a month at a time over the
+  web's own `monthRange`, so an occurrence near a month boundary lands on the same side in both
+* ✅ Client-side RRULE expansion (DAILY/WEEKLY/MONTHLY/YEARLY, INTERVAL, COUNT, UNTIL, BYDAY):
+  `RecurrenceExpander`, a port of the web's `expandRecurringEvents`, quirks included (below)
+* ✅ Time-zone-correct display: times in the device's zone, plus the event's own zone when it
+  differs ("2:00 PM – 3:00 PM Eastern Time")
+* ✅ All-day events, as dates rather than instants, on every day they cover (`EventDayRange`)
+* ✅ Events from connected providers, badged by `source` (Google, Outlook, iCloud)
+* ✅ Event detail: time, location, notes, guests, attachments (listed; opening a Drive file is
+  Epic 14)
+* ✅ A month agenda (the web's Agenda view) that opens at today; Month/Week/Day grids are Epic 5
+
+Parity is enforced, not hoped for: `scripts/generate_recurrence_vectors.mjs` runs the web's
+`calendarHelpers.ts` and writes `NeutrinoCalendarTests/Fixtures/recurrence_vectors.json`, and
+`RecurrenceVectorTests` holds the Swift port to it. Regenerate after any change to the web's
+recurrence code.
+
+**Where both clients depart from RFC 5545.** Kept on purpose for now, since the two clients have
+to agree, and each one is a web bug to fix in both places at once:
+
+* ⬜ COUNT counts FREQ steps, not occurrences: `FREQ=WEEKLY;BYDAY=TU,TH;COUNT=2` shows four
+* ⬜ A date-only UNTIL (`UNTIL=20260930`) is ignored, so the event repeats forever
+* ⬜ MONTHLY/YEARLY overflow instead of skipping: Jan 31 → Mar 3, and every later month keeps
+  the 3rd
+* ⬜ A rule with an `RRULE:` prefix doesn't parse, and the event shows once
+* ⬜ Expansion stops 1000 steps after the first occurrence: a daily event begun three years ago
+  shows nothing
+* ⬜ A repetition that starts before the range is not shown, even while it is still running inside it (one-off events are fine: the server returns every event that overlaps)
 
 Milestone
 

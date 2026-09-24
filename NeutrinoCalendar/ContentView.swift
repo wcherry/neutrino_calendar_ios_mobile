@@ -45,4 +45,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environmentObject(AuthService())
+        .environmentObject(EventsService(client: CalendarAPIClient(token: { nil })))
 }
