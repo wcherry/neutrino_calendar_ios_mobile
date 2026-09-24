@@ -323,14 +323,21 @@ Goal: parity with the web sidebars.
 
 ⸻
 
-### ⬜ Epic 13 — Tasks
+### ✅ Epic 13 — Tasks
 
-* ⬜ Task lists (create, color, rename)
-* ⬜ Tasks: title, notes, due date, done
-* ⬜ Reorder by drag (`POST /tasks/reorder`)
-* ⬜ A task in several lists
-* ⬜ Schedule a task as an event (`POST /tasks/{id}/event`), and unschedule it
-* ⬜ Task attachments
+* ✅ Tasks: title, notes, due date, done. A due date is a day, the same in every zone
+* ✅ Type a task and press return to add it; the box stays focused for the next one
+* ✅ Reorder by drag (Edit, then drag; `POST /tasks/reorder` with the open tasks' order)
+* ✅ Schedule a task as an event, and unschedule it: "Add to calendar" with a start and end or
+  all day. It starts at 09:00 on the due day or the next hour, for an hour, and an already
+  scheduled task opens on its event's real slot so opening it never moves anything
+* ✅ The task's reminders (add one prefilled with the task's title) and note attachments
+* ✖ Task lists (create, color, rename) and a task in several lists: **dropped**. The web
+  stopped grouping by lists because they are being replaced by tags, so tasks are one flat
+  list in the server's order on both clients. Revisit when tags reach tasks
+* ⬜ Attach a Drive file to a task (Epic 14)
+* ⬜ Delete a task. The server has no route for it, and the web can't either
+* ⬜ Add tasks from a `.txt` or `.csv` file, as the web can
 
 ⸻
 
@@ -470,6 +477,6 @@ The MVP is complete when a user can:
 | M2 — Read-only calendar | 3, 5 | none |
 | M3 — Editing | 4, 6, 7 | none |
 | M4 — Offline & alerts (MVP) | 9, 10, 11 | a delta endpoint is useful but not blocking |
-| M5 — Reminders, tasks, attachments | 12, 13, 14 | none |
+| M5 — Reminders, tasks, attachments | 12, 13, 14 | a delete route for tasks |
 | M6 — Apple ecosystem | 8, 15, 16, 17, 18 | ICS endpoints, two-way sync |
 | M7 — Collaboration | 19, 20, 21 | invites, sharing, recurrence exceptions |

@@ -105,9 +105,56 @@ final class CalendarAPIClient {
         _ = try await send("DELETE", "/api/v1/calendar/reminders/\(id)")
     }
 
-    /// A bare array, unlike the other list endpoints.
+    func event(id: String) async throws -> CalendarEvent {
+        try await get("/api/v1/calendar/events/\(id)")
+    }
+
+    // MARK: - Tasks
+
+    /// Every task, in `position` order. A bare array, unlike the other list endpoints.
     func tasks() async throws -> [CalendarTask] {
         try await get("/api/v1/calendar/tasks")
+    }
+
+    func createTask(_ request: CreateTaskRequest) async throws -> CalendarTask {
+        try decode(try await send("POST", "/api/v1/calendar/tasks", body: request), path: "tasks")
+    }
+
+    func updateTask(id: String, _ request: UpdateTaskRequest) async throws -> CalendarTask {
+        try decode(try await send("PATCH", "/api/v1/calendar/tasks/\(id)", body: request), path: "tasks/{id}")
+    }
+
+    /// Sets the order of the tasks named, first to last. The web sends only the open tasks, and so
+    /// does this: done tasks keep whatever positions they had.
+    func reorderTasks(ids: [String]) async throws {
+        _ = try await send("POST", "/api/v1/calendar/tasks/reorder", body: ReorderTasksRequest(taskIds: ids))
+    }
+
+    /// Puts the task on the calendar, or moves the event it is already on; answers with the event.
+    @discardableResult
+    func scheduleTask(id: String, _ request: ScheduleTaskRequest) async throws -> CalendarEvent {
+        try decode(try await send("POST", "/api/v1/calendar/tasks/\(id)/event", body: request),
+                   path: "tasks/{id}/event")
+    }
+
+    /// Takes the task off the calendar, deleting its event; answers with the task.
+    func unscheduleTask(id: String) async throws -> CalendarTask {
+        try decode(try await send("DELETE", "/api/v1/calendar/tasks/\(id)/event"), path: "tasks/{id}/event")
+    }
+
+    func taskAttachments(taskID: String) async throws -> [TaskAttachment] {
+        let response: ListTaskAttachmentsResponse = try await get("/api/v1/calendar/tasks/\(taskID)/attachments")
+        return response.attachments
+    }
+
+    func addTaskNote(taskID: String, note: String) async throws -> TaskAttachment {
+        try decode(try await send("POST", "/api/v1/calendar/tasks/\(taskID)/attachments",
+                                  body: CreateTaskAttachmentRequest(note: note)),
+                   path: "tasks/{id}/attachments")
+    }
+
+    func deleteTaskAttachment(taskID: String, attachmentID: String) async throws {
+        _ = try await send("DELETE", "/api/v1/calendar/tasks/\(taskID)/attachments/\(attachmentID)")
     }
 
     // MARK: - Transport

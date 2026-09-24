@@ -1,19 +1,5 @@
 import SwiftUI
 
-// Empty states for the Epic 1 shell. Each one is replaced wholesale by the epic it names in
-// agent_docs/road_map.md, so they stay deliberately thin.
-
-struct TasksView: View {
-    var body: some View {
-        EmptyStateView(
-            systemImage: "checklist",
-            title: "No Tasks",
-            message: "Your task lists will appear here."
-        )
-        .navigationTitle("Tasks")
-    }
-}
-
 /// `ContentUnavailableView` is iOS 17+, and the deployment target is 16, so this is a small
 /// stand-in with the same layout.
 struct EmptyStateView: View {
@@ -39,5 +25,5 @@ struct EmptyStateView: View {
 }
 
 #Preview {
-    NavigationStack { TasksView() }
+    EmptyStateView(systemImage: "calendar", title: "No Events", message: "Nothing is scheduled.")
 }

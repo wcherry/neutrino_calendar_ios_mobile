@@ -54,7 +54,7 @@ struct RemindersView: View {
         .searchable(text: $search)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button { editing = .create(eventID: nil, due: nil) } label: {
+                Button { editing = .create(link: .none, due: nil) } label: {
                     Label("New Reminder", systemImage: "plus")
                 }
             }
@@ -93,6 +93,8 @@ struct ReminderRow: View {
     @EnvironmentObject var reminders: RemindersService
     let reminder: Reminder
     var taskTitle: String? = nil
+    /// Off inside an event's or a task's own screen, where saying what it belongs to is noise.
+    var showsLink = true
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -123,7 +125,7 @@ struct ReminderRow: View {
                         .font(.subheadline)
                         .foregroundStyle(reminder.isOverdue() ? .red : .secondary)
                 }
-                if let link = linkText {
+                if showsLink, let link = linkText {
                     Label(link.text, systemImage: link.symbol)
                         .font(.caption)
                         .foregroundStyle(.secondary)
