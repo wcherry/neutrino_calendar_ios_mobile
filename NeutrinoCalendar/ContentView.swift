@@ -46,4 +46,5 @@ struct ContentView: View {
     ContentView()
         .environmentObject(AuthService())
         .environmentObject(EventsService(client: CalendarAPIClient(token: { nil })))
+        .environmentObject(RemindersService(client: CalendarAPIClient(token: { nil })))
 }

@@ -23,7 +23,7 @@ enum CalendarAPIError: LocalizedError, Equatable {
 
 // MARK: - CalendarAPIClient
 
-/// Authorized reads from `/api/v1/calendar`.
+/// Authorized requests to `/api/v1/calendar`.
 ///
 /// Shaped like the Notes app's service helpers: refresh the token if it is about to expire, attach
 /// it, send, and map anything outside 2xx onto one error type. The session and the token source
@@ -84,9 +84,49 @@ final class CalendarAPIClient {
         return response.attachments
     }
 
+    /// Every reminder the user has, linked or not. The server can filter by `eventId` or `taskId`,
+    /// but one list is what the Reminders tab and the event screens both draw from.
+    func reminders() async throws -> [Reminder] {
+        let response: ListRemindersResponse = try await get("/api/v1/calendar/reminders")
+        return response.reminders
+    }
+
+    func createReminder(_ request: CreateReminderRequest) async throws -> Reminder {
+        try decode(try await send("POST", "/api/v1/calendar/reminders", body: request), path: "reminders")
+    }
+
+    /// The server's answer, not the request, is the new state: completing a recurring reminder
+    /// comes back open, at its next due time.
+    func updateReminder(id: String, _ request: UpdateReminderRequest) async throws -> Reminder {
+        try decode(try await send("PATCH", "/api/v1/calendar/reminders/\(id)", body: request), path: "reminders/{id}")
+    }
+
+    func deleteReminder(id: String) async throws {
+        _ = try await send("DELETE", "/api/v1/calendar/reminders/\(id)")
+    }
+
+    /// A bare array, unlike the other list endpoints.
+    func tasks() async throws -> [CalendarTask] {
+        try await get("/api/v1/calendar/tasks")
+    }
+
     // MARK: - Transport
 
     private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
+        try decode(try await send("GET", path, query: query), path: path)
+    }
+
+    private func decode<T: Decodable>(_ data: Data, path: String) throws -> T {
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            logger.error("decode error \(path, privacy: .public): \(error, privacy: .public)")
+            throw CalendarAPIError.decodingError(String(describing: error))
+        }
+    }
+
+    private func send(_ method: String, _ path: String, query: [URLQueryItem] = [],
+                      body: (any Encodable)? = nil) async throws -> Data {
         guard var components = URLComponents(string: baseURL() + path) else {
             throw CalendarAPIError.serverError(statusCode: 0)
         }
@@ -98,9 +138,14 @@ final class CalendarAPIClient {
             throw CalendarAPIError.notAuthenticated
         }
         var request = URLRequest(url: url)
+        request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(body)
+        }
 
-        logger.debug("--> GET \(path, privacy: .public)")
+        logger.debug("--> \(method, privacy: .public) \(path, privacy: .public)")
         let data: Data
         let response: URLResponse
         do {
@@ -121,11 +166,6 @@ final class CalendarAPIClient {
         guard (200...299).contains(http.statusCode) else {
             throw CalendarAPIError.serverError(statusCode: http.statusCode)
         }
-        do {
-            return try JSONDecoder().decode(T.self, from: data)
-        } catch {
-            logger.error("decode error \(path, privacy: .public): \(error, privacy: .public)")
-            throw CalendarAPIError.decodingError(String(describing: error))
-        }
+        return data
     }
 }

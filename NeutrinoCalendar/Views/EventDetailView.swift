@@ -3,7 +3,10 @@ import SwiftUI
 /// One occurrence of an event, read-only. Editing is Epic 4.
 struct EventDetailView: View {
     @EnvironmentObject var events: EventsService
+    @EnvironmentObject var reminders: RemindersService
     let occurrence: EventOccurrence
+
+    @State private var customReminder: ReminderEditorView.Mode?
 
     @State private var attachments: [EventAttachment] = []
     @State private var attachmentsState: LoadState = .loading
@@ -66,11 +69,70 @@ struct EventDetailView: View {
                 }
             }
 
+            remindersSection
+
             attachmentsSection
         }
         .navigationTitle("Event")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: event.id) { await loadAttachments() }
+        .task { if !reminders.hasLoaded { await reminders.reload() } }
+        .sheet(item: $customReminder) { ReminderEditorView(mode: $0) }
+    }
+
+    // MARK: - Reminders
+
+    private var eventReminders: [Reminder] { reminders.reminders(forEvent: event.id) }
+
+    /// The event's reminders, and the web's presets for adding one. A preset is timed from this
+    /// occurrence's start, which is what the web does too: its detail panel is handed the expanded
+    /// occurrence. Presets already used, or already in the past, are left out.
+    private var remindersSection: some View {
+        Section("Reminders") {
+            ForEach(eventReminders) { reminder in
+                ReminderRow(reminder: reminder)
+                    .swipeActions {
+                        Button(role: .destructive) { Task { await reminders.delete(reminder) } } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+            }
+            Menu {
+                ForEach(availablePresets) { preset in
+                    Button(preset.label) { Task { await add(preset) } }
+                }
+                Divider()
+                Button("Custom…") { customReminder = .create(eventID: event.id, due: occurrence.start) }
+            } label: {
+                // Full width: a menu in a list row answers only on its label, so without this a
+                // tap on the empty right-hand side of the row does nothing.
+                Label("Add Reminder", systemImage: "bell.badge")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+        }
+    }
+
+    private var availablePresets: [ReminderPreset] {
+        let taken = Set(eventReminders.map(\.due))
+        let now = Date()
+        return ReminderPreset.all.filter { preset in
+            let due = dueTime(for: preset)
+            return due > now && !taken.contains(due)
+        }
+    }
+
+    private func dueTime(for preset: ReminderPreset) -> Date {
+        occurrence.start.addingTimeInterval(-TimeInterval(preset.minutes * 60))
+    }
+
+    private func add(_ preset: ReminderPreset) async {
+        do {
+            // Titled after the event, as the web titles the reminders it makes for one.
+            try await reminders.create(title: event.title, due: dueTime(for: preset), rule: nil, eventID: event.id)
+        } catch {
+            reminders.error = error.localizedDescription
+        }
     }
 
     @ViewBuilder

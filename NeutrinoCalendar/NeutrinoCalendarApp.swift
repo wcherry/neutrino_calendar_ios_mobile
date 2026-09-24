@@ -11,6 +11,7 @@ struct NeutrinoCalendarApp: App {
     @StateObject private var authService: AuthService
     @StateObject private var networkMonitor: NetworkMonitor
     @StateObject private var eventsService: EventsService
+    @StateObject private var remindersService: RemindersService
 
     init() {
         // Before anything else. Everything the shared package writes is namespaced `ncal.*`.
@@ -20,9 +21,9 @@ struct NeutrinoCalendarApp: App {
         let authService = AuthService()
         _authService = StateObject(wrappedValue: authService)
         _networkMonitor = StateObject(wrappedValue: NetworkMonitor())
-        _eventsService = StateObject(wrappedValue: EventsService(
-            client: CalendarAPIClient(authService: authService)
-        ))
+        let client = CalendarAPIClient(authService: authService)
+        _eventsService = StateObject(wrappedValue: EventsService(client: client))
+        _remindersService = StateObject(wrappedValue: RemindersService(client: client))
     }
 
     var body: some Scene {
@@ -31,6 +32,7 @@ struct NeutrinoCalendarApp: App {
                 .environmentObject(authService)
                 .environmentObject(networkMonitor)
                 .environmentObject(eventsService)
+                .environmentObject(remindersService)
         }
     }
 }
@@ -41,6 +43,7 @@ struct NeutrinoCalendarApp: App {
 private struct RootContentView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var eventsService: EventsService
+    @EnvironmentObject var remindersService: RemindersService
 
     var body: some View {
         Group {
@@ -56,7 +59,10 @@ private struct RootContentView: View {
             }
         }
         .onChange(of: authService.isAuthenticated) { isAuthenticated in
-            if !isAuthenticated { eventsService.reset() }
+            if !isAuthenticated {
+                eventsService.reset()
+                remindersService.reset()
+            }
         }
     }
 }
