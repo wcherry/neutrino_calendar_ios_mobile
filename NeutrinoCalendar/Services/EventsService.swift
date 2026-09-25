@@ -166,6 +166,33 @@ final class EventsService: ObservableObject {
         focus = today
     }
 
+    // MARK: - Changes
+
+    /// Each change throws the cache away, so every view reloads what it shows: an event can move
+    /// to any month, and a repeating one reaches every month.
+    @discardableResult
+    func create(_ draft: EventDraft) async throws -> CalendarEvent {
+        let created = try await client.createEvent(draft.createRequest())
+        invalidate()
+        return created
+    }
+
+    /// Saves what changed between `original` and `draft`; returns the event unchanged when
+    /// nothing did.
+    @discardableResult
+    func update(_ event: CalendarEvent, from original: EventDraft, to draft: EventDraft) async throws -> CalendarEvent {
+        let request = draft.updateRequest(from: original)
+        guard request != UpdateEventRequest() else { return event }
+        let updated = try await client.updateEvent(id: event.id, request)
+        invalidate()
+        return updated
+    }
+
+    func delete(_ event: CalendarEvent) async throws {
+        try await client.deleteEvent(id: event.id)
+        invalidate()
+    }
+
     func attachments(for event: CalendarEvent) async throws -> [EventAttachment] {
         try await client.attachments(forEvent: event.id)
     }

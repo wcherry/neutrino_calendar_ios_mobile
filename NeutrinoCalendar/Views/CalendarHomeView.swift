@@ -10,6 +10,7 @@ struct CalendarHomeView: View {
     @EnvironmentObject var events: EventsService
     @AppStorage(CalendarMode.storageKey) private var mode: CalendarMode = .month
     @State private var jumping = false
+    @State private var creating: EventEditorView.Mode?
 
     var body: some View {
         content
@@ -18,6 +19,7 @@ struct CalendarHomeView: View {
             .toolbar { toolbar }
             .navigationDestination(for: EventOccurrence.self) { EventDetailView(occurrence: $0) }
             .sheet(isPresented: $jumping) { JumpToDateSheet() }
+            .sheet(item: $creating) { EventEditorView(mode: $0) }
             // Loads whatever the mode now covers: a new mode, a new focus, or a cache thrown away
             // after an edit elsewhere.
             .task(id: LoadKey(mode: mode, focus: events.focus, generation: events.generation)) {
@@ -94,6 +96,11 @@ struct CalendarHomeView: View {
         ToolbarItemGroup(placement: .navigationBarTrailing) {
             Button("Today") { events.goToToday() }
                 .disabled(events.isShowingToday(mode))
+            // A new event starts on the day in view: the selected day in month view, the day in
+            // day view, the focused day otherwise.
+            Button { creating = .create(day: events.focus) } label: {
+                Label("New Event", systemImage: "plus")
+            }
             Menu {
                 Picker("View", selection: $mode) {
                     ForEach(CalendarMode.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
