@@ -1,108 +1,150 @@
 import SwiftUI
 
-/// The Calendar tab: one month as an agenda, days with events only, each event on every day it
-/// covers. Month, week and day grids are Epic 5; this is the web's Agenda view.
+/// The Calendar tab: the same events as Day, Week, Month, Year or Agenda, with arrows that step by
+/// the view's own unit, a Today button, and a date picker behind the title for jumping anywhere.
+///
+/// The mode is remembered per device. Each mode's view reads what it needs from `EventsService`,
+/// which loads the months the mode covers and keeps them, so switching modes over the same weeks
+/// costs no requests.
 struct CalendarHomeView: View {
     @EnvironmentObject var events: EventsService
-    /// The month the list last jumped to today in, so a refresh doesn't yank the list back
-    /// while someone is reading further down.
-    @State private var scrolledToTodayIn: Date?
-    /// Switching the density rebuilds the list, which puts it back at the 1st; this is watched so
-    /// the rebuilt list jumps to today again.
-    @AppStorage(LayoutDensity.storageKey) private var compactLayout = false
+    @AppStorage(CalendarMode.storageKey) private var mode: CalendarMode = .month
+    @State private var jumping = false
+    @State private var creating: EventEditorView.Mode?
 
     var body: some View {
         content
-            .navigationTitle(events.month.formatted(.dateTime.month(.wide).year()))
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
             .navigationDestination(for: EventOccurrence.self) { EventDetailView(occurrence: $0) }
-            .refreshable { await events.reload() }
-            .task { await events.reload() }
-            .onChange(of: compactLayout) { _ in scrolledToTodayIn = nil }
+            .sheet(isPresented: $jumping) { JumpToDateSheet() }
+            .sheet(item: $creating) { EventEditorView(mode: $0) }
+            // Loads whatever the mode now covers: a new mode, a new focus, or a cache thrown away
+            // after an edit elsewhere.
+            .task(id: LoadKey(mode: mode, focus: events.focus, generation: events.generation)) {
+                await events.ensureLoaded(for: mode)
+            }
+    }
+
+    private struct LoadKey: Hashable {
+        let mode: CalendarMode
+        let focus: Date
+        let generation: Int
     }
 
     @ViewBuilder
     private var content: some View {
-        if events.sections.isEmpty {
-            if events.isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = events.error {
-                // Pull-to-refresh needs a scroll view to pull on.
-                ScrollView {
-                    EmptyStateView(systemImage: "exclamationmark.triangle", title: "Couldn't Load Events",
-                                   message: error)
-                    Button("Try Again") { Task { await events.reload() } }
-                }
-            } else {
-                ScrollView {
-                    EmptyStateView(systemImage: "calendar", title: "No Events",
-                                   message: "Nothing is scheduled this month.")
-                }
-            }
-        } else {
-            ScrollViewReader { proxy in
-                List {
-                    if let error = events.error {
-                        // Keep what is already on screen and say the refresh failed, rather than
-                        // replacing a usable list with an error.
-                        Label(error, systemImage: "exclamationmark.triangle")
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
-                    }
-                    ForEach(events.sections) { section in
-                        Section {
-                            ForEach(section.occurrences) { occurrence in
-                                NavigationLink(value: occurrence) {
-                                    EventRowView(occurrence: occurrence)
-                                }
-                                .densityRow()
-                            }
-                        } header: {
-                            DayHeader(day: section.day)
-                        }
-                        .id(section.id)
-                    }
-                }
-                .listStyle(.insetGrouped)
-                .densityList()
-                .onAppear { scrollToToday(proxy) }
-                .onChange(of: events.sections) { _ in scrollToToday(proxy) }
-            }
+        switch mode {
+        case .day:    TimeGridView(days: [events.focus], onSelectDay: nil)
+        case .week:   TimeGridView(days: events.visibleDays(for: .week)) { day in
+                          events.select(day)
+                          mode = .day
+                      }
+        case .month:  MonthView()
+        case .year:   YearView { month in
+                          events.select(month)
+                          mode = .month
+                      }
+        case .agenda: AgendaView()
         }
     }
 
-    /// Opens the current month at today, or at the next day with events, rather than at the 1st.
-    /// Other months open at their start, as the web does.
-    private func scrollToToday(_ proxy: ScrollViewProxy) {
-        guard events.isShowingCurrentMonth, scrolledToTodayIn != events.month else { return }
-        let today = Calendar.current.startOfDay(for: Date())
-        guard let target = events.sections.first(where: { $0.day >= today }) else { return }
-        scrolledToTodayIn = events.month
-        proxy.scrollTo(target.id, anchor: .top)
+    private var title: String {
+        let focus = events.focus
+        switch mode {
+        case .day:
+            return focus.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+        case .week:
+            let days = events.visibleDays(for: .week)
+            return Self.span(days.first!, days.last!, calendar: events.calendar)
+        case .month, .agenda:
+            return focus.formatted(.dateTime.month(.wide).year())
+        case .year:
+            return focus.formatted(.dateTime.year())
+        }
+    }
+
+    /// "Sep 20 – 26" or, across a month end, "Sep 27 – Oct 3".
+    static func span(_ first: Date, _ last: Date, calendar: Calendar) -> String {
+        let sameMonth = calendar.isDate(first, equalTo: last, toGranularity: .month)
+        let end = sameMonth ? last.formatted(.dateTime.day()) : last.formatted(.dateTime.month(.abbreviated).day())
+        return "\(first.formatted(.dateTime.month(.abbreviated).day())) – \(end)"
     }
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .navigationBarLeading) {
-            Button { Task { await events.showPreviousMonth() } } label: {
-                Label("Previous Month", systemImage: "chevron.left")
+            Button { events.move(mode, by: -1) } label: {
+                Label("Previous", systemImage: "chevron.left")
             }
-            Button { Task { await events.showNextMonth() } } label: {
-                Label("Next Month", systemImage: "chevron.right")
+            Button { events.move(mode, by: 1) } label: {
+                Label("Next", systemImage: "chevron.right")
             }
         }
-        ToolbarItem(placement: .navigationBarTrailing) {
-            Button("Today") { Task { await events.showToday() } }
-                .disabled(events.isShowingCurrentMonth)
+        ToolbarItem(placement: .principal) {
+            // The title is the way to any date, as the month name is in the iPhone's Calendar.
+            Button { jumping = true } label: {
+                HStack(spacing: 4) {
+                    Text(title).font(.headline)
+                    Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+                }
+                .foregroundStyle(.primary)
+            }
+            .accessibilityLabel("\(title), choose a date")
         }
+        ToolbarItemGroup(placement: .navigationBarTrailing) {
+            Button("Today") { events.goToToday() }
+                .disabled(events.isShowingToday(mode))
+            // A new event starts on the day in view: the selected day in month view, the day in
+            // day view, the focused day otherwise.
+            Button { creating = .create(day: events.focus) } label: {
+                Label("New Event", systemImage: "plus")
+            }
+            Menu {
+                Picker("View", selection: $mode) {
+                    ForEach(CalendarMode.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
+                }
+            } label: {
+                Label("View: \(mode.label)", systemImage: mode.symbol)
+            }
+        }
+    }
+}
+
+// MARK: - JumpToDateSheet
+
+/// A calendar to pick any day from, for dates the arrows would take a while to reach.
+struct JumpToDateSheet: View {
+    @EnvironmentObject var events: EventsService
+    @Environment(\.dismiss) private var dismiss
+    @State private var date = Date()
+
+    var body: some View {
+        NavigationStack {
+            DatePicker("Date", selection: $date, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .padding()
+                .navigationTitle("Go to Date")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Go") {
+                            events.select(date)
+                            dismiss()
+                        }
+                    }
+                }
+                .onAppear { date = events.focus }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 
 // MARK: - DayHeader
 
-private struct DayHeader: View {
+struct DayHeader: View {
     let day: Date
 
     var body: some View {

@@ -14,28 +14,30 @@ struct DaySection: Identifiable, Equatable {
 
 // MARK: - EventsService
 
-/// Loads a month of events, expands the recurring ones, and lays them out by day.
+/// Loads events a month at a time, expands the recurring ones, and answers "what is on this day"
+/// for every view.
 ///
 /// The month is the unit because it is the web's: `monthRange` in `calendarHelpers.ts` asks for
-/// local midnight on the 1st through 23:59:59 on the last day, and expands over the same span. Asking
-/// for the same range is what keeps an occurrence near a month boundary on the same side of it in
-/// both clients.
+/// local midnight on the 1st through 23:59:59 on the last day, and expands over the same span.
+/// Asking for the same ranges is what keeps an occurrence near a month boundary on the same side
+/// of it in both clients. A week that crosses a month end simply loads both months; each day is
+/// answered from its own month's load, which the server fills with every event overlapping it.
 @MainActor
 final class EventsService: ObservableObject {
 
-    /// Midnight on the first of the month being shown.
-    @Published private(set) var month: Date
-    /// Days of `month` that have at least one occurrence, in order.
-    @Published private(set) var sections: [DaySection] = []
-    @Published private(set) var isLoading = false
+    /// The day the views are centred on: the selected day in month view, the day in day view, a
+    /// day of the week in week view. Always a local midnight.
+    @Published private(set) var focus: Date
+    /// Occurrences by the first of the month they were loaded for.
+    @Published private(set) var byMonth: [Date: [EventOccurrence]] = [:]
+    @Published private(set) var loadingMonths: Set<Date> = []
     @Published var error: String?
+    /// Bumped whenever the cache is thrown away, so a view that loads on change of it loads again.
+    @Published private(set) var generation = 0
 
     private let client: CalendarAPIClient
-    private let calendar: Calendar
+    let calendar: Calendar
     private let now: () -> Date
-    /// Which month the newest request was for, so a slow response for a month the user has
-    /// already paged past is dropped instead of overwriting the one on screen.
-    private var requestedMonth: Date?
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NeutrinoCalendar",
                                 category: "EventsService")
@@ -44,59 +46,151 @@ final class EventsService: ObservableObject {
         self.client = client
         self.calendar = calendar
         self.now = now
-        self.month = Self.firstOfMonth(now(), calendar: calendar)
+        self.focus = calendar.startOfDay(for: now())
+    }
+
+    // MARK: - Queries
+
+    var today: Date { calendar.startOfDay(for: now()) }
+
+    /// The first of the focused month.
+    var month: Date { Self.firstOfMonth(focus, calendar: calendar) }
+
+    var isLoading: Bool { !loadingMonths.isEmpty }
+
+    func hasLoaded(_ month: Date) -> Bool { byMonth[month] != nil }
+
+    /// The agenda: the focused month's days that have occurrences.
+    var sections: [DaySection] {
+        Self.layout(byMonth[month] ?? [], in: month, calendar: calendar)
+    }
+
+    /// Everything on `day`, all-day first, then by start, then by title. Empty until the day's
+    /// month has loaded.
+    func occurrences(on day: Date) -> [EventOccurrence] {
+        let month = Self.firstOfMonth(day, calendar: calendar)
+        return (byMonth[month] ?? [])
+            .filter { EventDayRange($0, calendar: calendar).contains(day: day, calendar: calendar) }
+            .sorted(by: Self.dayOrder)
+    }
+
+    /// The days `mode` shows around the focus, which decides what has to be loaded.
+    func visibleDays(for mode: CalendarMode) -> [Date] {
+        switch mode {
+        case .day:    return [focus]
+        case .week:   return CalendarGrid.weekDays(containing: focus, calendar: calendar)
+        case .month:  return CalendarGrid.monthDays(focus, calendar: calendar)
+        case .agenda: return [month]
+        case .year:   return []
+        }
+    }
+
+    /// The months `mode` needs. The month grid shows its neighbours' days greyed and without
+    /// events, as the iPhone's Calendar does, so it needs only its own month.
+    func months(for mode: CalendarMode) -> [Date] {
+        mode == .month ? [month] : CalendarGrid.months(covering: visibleDays(for: mode), calendar: calendar)
     }
 
     // MARK: - Navigation
 
-    func showPreviousMonth() async { await show(month: calendar.date(byAdding: .month, value: -1, to: month)!) }
-    func showNextMonth() async { await show(month: calendar.date(byAdding: .month, value: 1, to: month)!) }
-    func showToday() async { await show(month: Self.firstOfMonth(now(), calendar: calendar)) }
-
-    var isShowingCurrentMonth: Bool {
-        month == Self.firstOfMonth(now(), calendar: calendar)
+    /// Steps by the mode's unit. A step of a month or a year lands on the 1st, or on today when
+    /// it arrives in today's month, as the iPhone's Calendar does; a day or week keeps the weekday.
+    func move(_ mode: CalendarMode, by steps: Int) {
+        let moved = calendar.date(byAdding: mode.step, value: steps, to: focus)!
+        switch mode.step {
+        case .month, .year:
+            let first = Self.firstOfMonth(moved, calendar: calendar)
+            focus = first == Self.firstOfMonth(today, calendar: calendar) ? today : first
+        default:
+            focus = calendar.startOfDay(for: moved)
+        }
     }
 
-    private func show(month newMonth: Date) async {
-        if newMonth != month {
-            month = newMonth
-            sections = []
+    func goToToday() { focus = today }
+
+    func select(_ day: Date) { focus = calendar.startOfDay(for: day) }
+
+    /// Whether `mode` already shows today, which is when the Today button has nothing to do.
+    func isShowingToday(_ mode: CalendarMode) -> Bool {
+        switch mode {
+        case .day:            return focus == today
+        case .week:           return visibleDays(for: .week).contains(today)
+        case .month, .agenda: return focus == today
+        case .year:           return calendar.isDate(focus, equalTo: today, toGranularity: .year)
         }
-        await reload()
     }
 
     // MARK: - Loading
 
-    func reload() async {
-        let shown = month
-        let range = Self.monthRange(shown, calendar: calendar)
-        requestedMonth = shown
-        isLoading = true
-        error = nil
-        defer { if requestedMonth == shown { isLoading = false } }
+    /// Loads whichever of `mode`'s months are not loaded yet.
+    func ensureLoaded(for mode: CalendarMode) async {
+        for month in months(for: mode) where byMonth[month] == nil && !loadingMonths.contains(month) {
+            await load(month)
+        }
+    }
 
+    /// Loads `mode`'s months again, for pull-to-refresh.
+    func reload(for mode: CalendarMode) async {
+        for month in months(for: mode) { await load(month) }
+    }
+
+    /// Drops every loaded month, for after a change made elsewhere in the app, such as a task put
+    /// on the calendar: the event may be in any month, and the cache must not keep a stale copy of
+    /// one that is not on screen. The calendar reloads what it shows the next time it appears.
+    func invalidate() {
+        byMonth = [:]
+        generation += 1
+    }
+
+    private func load(_ month: Date) async {
+        let range = Self.monthRange(month, calendar: calendar)
+        loadingMonths.insert(month)
+        error = nil
+        defer { loadingMonths.remove(month) }
         do {
             let events = try await client.events(from: range.from, to: range.to)
-            guard requestedMonth == shown else { return }
-            let occurrences = RecurrenceExpander.expand(events, from: range.from, to: range.to,
-                                                        calendar: calendar)
-            sections = Self.layout(occurrences, in: shown, calendar: calendar)
-            logger.debug("loaded \(events.count) event(s), \(occurrences.count) occurrence(s)")
+            byMonth[month] = RecurrenceExpander.expand(events, from: range.from, to: range.to,
+                                                       calendar: calendar)
+            logger.debug("loaded \(events.count) event(s) for a month")
         } catch {
-            guard requestedMonth == shown else { return }
-            logger.error("reload failed: \(error, privacy: .public)")
+            logger.error("load failed: \(error, privacy: .public)")
             self.error = error.localizedDescription
         }
     }
 
-    /// Forgets everything loaded, for sign-out: the next account must never see this one's events,
-    /// not even behind a failed first load.
+    /// Forgets everything loaded, for sign-out: the next account must never see this one's events.
     func reset() {
-        requestedMonth = nil
-        sections = []
+        byMonth = [:]
+        loadingMonths = []
         error = nil
-        isLoading = false
-        month = Self.firstOfMonth(now(), calendar: calendar)
+        focus = today
+    }
+
+    // MARK: - Changes
+
+    /// Each change throws the cache away, so every view reloads what it shows: an event can move
+    /// to any month, and a repeating one reaches every month.
+    @discardableResult
+    func create(_ draft: EventDraft) async throws -> CalendarEvent {
+        let created = try await client.createEvent(draft.createRequest())
+        invalidate()
+        return created
+    }
+
+    /// Saves what changed between `original` and `draft`; returns the event unchanged when
+    /// nothing did.
+    @discardableResult
+    func update(_ event: CalendarEvent, from original: EventDraft, to draft: EventDraft) async throws -> CalendarEvent {
+        let request = draft.updateRequest(from: original)
+        guard request != UpdateEventRequest() else { return event }
+        let updated = try await client.updateEvent(id: event.id, request)
+        invalidate()
+        return updated
+    }
+
+    func delete(_ event: CalendarEvent) async throws {
+        try await client.deleteEvent(id: event.id)
+        invalidate()
     }
 
     func attachments(for event: CalendarEvent) async throws -> [EventAttachment] {
@@ -118,11 +212,16 @@ final class EventsService: ObservableObject {
         return (first, to)
     }
 
-    /// Every day of `month` with its occurrences, empty days dropped — the web's `AgendaView`
-    /// over the month's own days.
-    ///
-    /// Within a day: all-day first, then by start, then by title, so a list that refreshes does
-    /// not reshuffle events that share a start time.
+    /// All-day first, then by start, then by title, so a list that refreshes does not reshuffle
+    /// events that share a start time.
+    static func dayOrder(_ a: EventOccurrence, _ b: EventOccurrence) -> Bool {
+        if a.event.allDay != b.event.allDay { return a.event.allDay }
+        if a.start != b.start { return a.start < b.start }
+        return a.event.title.localizedStandardCompare(b.event.title) == .orderedAscending
+    }
+
+    /// Every day of `month` with its occurrences, empty days dropped: the web's `AgendaView` over
+    /// the month's own days.
     static func layout(_ occurrences: [EventOccurrence], in month: Date,
                        calendar: Calendar) -> [DaySection] {
         let ranges = occurrences.map { ($0, EventDayRange($0, calendar: calendar)) }
@@ -134,11 +233,7 @@ final class EventsService: ObservableObject {
             let onDay = ranges
                 .filter { $0.1.contains(day: day, calendar: calendar) }
                 .map(\.0)
-                .sorted { a, b in
-                    if a.event.allDay != b.event.allDay { return a.event.allDay }
-                    if a.start != b.start { return a.start < b.start }
-                    return a.event.title.localizedStandardCompare(b.event.title) == .orderedAscending
-                }
+                .sorted(by: dayOrder)
             return onDay.isEmpty ? nil : DaySection(day: day, occurrences: onDay)
         }
     }

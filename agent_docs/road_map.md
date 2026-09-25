@@ -188,16 +188,30 @@ What a user sees on the phone matches the web calendar for the same range.
 
 ⸻
 
-### ⬜ Epic 4 — Event Editing
+### ✅ Epic 4 — Event Editing
 
 Features
 
-* ⬜ Create event (title, start/end, all-day, location, description)
-* ⬜ Edit and delete event
-* ⬜ Repeat picker that writes an RRULE the web understands
-* ⬜ Time-zone picker
-* ⬜ Attendees (email list — stored only, see Epic 18)
-* ⬜ Read-only handling for provider-sourced events until write-back exists (Epic 17)
+* ✅ Create event (title, start/end, all-day, location, notes) from the Calendar tab's +, on the
+  day in view: the next hour today, 09:00 on other days, for an hour
+* ✅ Edit and delete event, from its detail screen. A one-off event's screen follows the edit;
+  a repeating one's closes, since the series has moved
+* ✅ Repeat picker that writes the RRULEs the web writes, and keeps one it has no choice for
+* ✅ Time-zone picker. Times are entered in the chosen zone, and picking a zone keeps the clock
+  times (10:00 stays 10:00, now in New York), as the iPhone's Calendar does
+* ✅ Attendees (an email list; stored only, see Epic 19)
+* ✅ Read-only handling for provider-sourced events until write-back exists (Epic 17): no Edit
+  button, and a line saying where to edit it
+* A repeating event is edited and deleted as a whole series, from the series' own start. Editing
+  or deleting one occurrence needs recurrence exceptions (Epic 21)
+* ⬜ Reminders and attachments while creating, as the web's form offers: on iOS they are added
+  from the event's screen once it exists
+* ⬜ Web: a field cleared in the event form (location, notes, repeat) is sent as `null`, which the
+  server reads as "leave alone", so it keeps its old value. iOS sends `""`
+* ⬜ Web: editing an occurrence of a repeating event saves that occurrence's date as the series'
+  start, dropping every earlier occurrence. iOS edits from the series' own start
+* ⬜ Web: events synced from Google, Outlook or iCloud can be edited there, though the change
+  never reaches the provider
 
 Milestone
 
@@ -210,19 +224,26 @@ correctly on the phone.
 
 Goal: a calendar that feels native on iOS.
 
-### ⬜ Epic 5 — Views
+### ✅ Epic 5 — Views
 
-* ⬜ Month (with event dots, in the style of iPhone Calendar)
-* ⬜ Week (time grid)
-* ⬜ Day (time grid)
-* ⬜ Agenda (parity with the web `AgendaView`)
-* ⬜ Year overview
-* ⬜ Jump to today, and a date picker to jump to any date
-* ⬜ Current-time indicator
-
-Milestone
-
-The same three views as web, plus Day and Year.
+* ✅ Month: a grid with a dot per event (up to three) and the selected day's events below, as
+  the iPhone's Calendar shows a month; swipe the grid for the next or previous month
+* ✅ Week: seven columns over a 24-hour grid, an all-day row above it, and tapping a day's header
+  opens that day
+* ✅ Day: one column over the same grid, with times on each block
+* ✅ Agenda: parity with the web's `AgendaView` (from Epic 3)
+* ✅ Year: twelve small months; tap one to open it
+* ✅ Jump to today, and the title opens a calendar to jump to any date
+* ✅ Current-time indicator: a red line across today's column, moved every minute
+* The grid follows the web's: 24 hours with 08:00–20:00 at full strength, at least 24 minutes
+  tall per block, and a multi-day timed event filling each day in between. Unlike the web,
+  overlapping events sit side by side (`TimeGridLayout`). The grid opens an hour before now on
+  a day that includes today, and at 08:00 otherwise
+* Events load a month at a time over the web's `monthRange`, and loaded months are kept, so
+  switching views over the same dates costs no requests; a week across a month end loads both
+  months. The chosen view is remembered per device (`ncal.calendar.mode`)
+* ⬜ Web: the week view loads only the cursor's month, so a week across a month end misses the
+  other month's events there
 
 ⸻
 
