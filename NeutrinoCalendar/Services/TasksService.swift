@@ -56,14 +56,30 @@ final class TasksService: ObservableObject {
 
     @discardableResult
     func create(title: String) async throws -> CalendarTask {
-        let created = try await client.createTask(CreateTaskRequest(title: title))
+        try await create(CreateTaskRequest(title: title))
+    }
+
+    /// Creates the task a Smart Add line describes: "Buy milk ^tomorrow #errands !1".
+    @discardableResult
+    func create(_ parsed: SmartAddResult, calendar: Calendar = .current) async throws -> CalendarTask {
+        try await create(SmartAdd.request(for: parsed, calendar: calendar))
+    }
+
+    @discardableResult
+    func create(_ request: CreateTaskRequest) async throws -> CalendarTask {
+        let created = try await client.createTask(request)
         tasks.append(created)
         return created
     }
 
-    func setDone(_ task: CalendarTask, _ done: Bool) async {
+    /// Completing a repeating task leaves it done and the server creates the next occurrence as a
+    /// new task, which is added to the list here rather than waiting for a reload.
+    func setDone(_ task: CalendarTask, _ done: Bool, timeZone: TimeZone = .current) async {
         do {
-            replace(try await client.updateTask(id: task.id, UpdateTaskRequest(done: done)))
+            let result = try await client.updateTaskReportingNext(
+                id: task.id, UpdateTaskRequest(done: done, timezone: timeZone.identifier))
+            replace(result.task)
+            if let next = result.nextTask { replace(next) }
         } catch {
             logger.error("setDone failed: \(error, privacy: .public)")
             self.error = error.localizedDescription
@@ -84,6 +100,8 @@ final class TasksService: ObservableObject {
         let oldDue = task.dueDay(in: calendar).map { CalendarTask.dueDateValue(for: $0, in: calendar) }
         if newDue != oldDue {
             request.dueDate = newDue.map(Patch.set) ?? .clear
+            // A day picked here is a day: a due time set by Smart Add goes with the old date.
+            if newDue != nil && task.dueHasTime { request.dueHasTime = false }
         }
         guard request != UpdateTaskRequest() else { return task }
         let updated = try await client.updateTask(id: task.id, request)

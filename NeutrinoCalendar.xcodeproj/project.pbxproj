@@ -25,6 +25,7 @@
 		71D4D91C3E07AF4C80CC3113 /* RecurrenceVectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B09F49EEF828DDB98D349D7E /* RecurrenceVectorTests.swift */; };
 		765A7E7BAAF9CE6403CFA4F3 /* RemindersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 915FD92FC8610DB35F3A8B21 /* RemindersTests.swift */; };
 		77A6C6B469F1185638B8B331 /* EventDayRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20EDA0EACE6992F2FC049EE0 /* EventDayRange.swift */; };
+		784A3DDD5D2FC65E8E455585 /* SmartAddTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACFDF4594D21CDFB2F00656B /* SmartAddTests.swift */; };
 		7BDC20B6A2CB8D163F024473 /* CalendarTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150DFA50DDF60C916D2FCCED /* CalendarTask.swift */; };
 		7FD9A1735D851340830F7490 /* RecurrenceRuleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86788AFAA2E18F0B6099FD11 /* RecurrenceRuleTests.swift */; };
 		874A38B058E80642C4C3A21C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2816EB0C95053AA2FD1786 /* ContentView.swift */; };
@@ -35,9 +36,11 @@
 		A1BC296C04C096D30DDB10D0 /* CalendarAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6F379406268C4D60144F0E7 /* CalendarAPIClientTests.swift */; };
 		A3D0B335FAD40146CF132959 /* NeutrinoAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 20CD14C92E6EF8CD50ABD24A /* NeutrinoAuth */; };
 		A5FCC459A9131754274358E7 /* TasksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 067E87FA2C75EC745A3F82FA /* TasksService.swift */; };
+		A81C3F8A5773B80E7E9477E5 /* SmartAdd.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD07754105D0A9CB9E89921D /* SmartAdd.swift */; };
 		AB327C16308E794406C20D22 /* EventsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 402CB7B696143E158856C7A5 /* EventsService.swift */; };
 		B369D156C68834BA940B1EBA /* NeutrinoCore in Frameworks */ = {isa = PBXBuildFile; productRef = F09C72A306B3DB398526B07D /* NeutrinoCore */; };
 		BC5706B07A013E0706F12E5F /* RemindersService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F1400EBAE4528B0D3405FC /* RemindersService.swift */; };
+		CC5E7C15E44BB0F75D730D6A /* smart_add_vectors.json in Resources */ = {isa = PBXBuildFile; fileRef = FCB92F8071B9266B8D136244 /* smart_add_vectors.json */; };
 		CD2B4B3E30E36CED86A919D9 /* EventDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B85BBF3019849DB6C249586 /* EventDetailView.swift */; };
 		D297666923D9531EE9864452 /* CalendarEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D404E4B379B9B1C390678844 /* CalendarEvent.swift */; };
 		D68AF1D61B7C7F02C156FCD1 /* TaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E612AF342FB4C7B8BF283A61 /* TaskDetailView.swift */; };
@@ -86,6 +89,8 @@
 		915FD92FC8610DB35F3A8B21 /* RemindersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersTests.swift; sourceTree = "<group>"; };
 		9B85BBF3019849DB6C249586 /* EventDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailView.swift; sourceTree = "<group>"; };
 		9F107C6753FB215BC748436F /* NeutrinoCalendarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeutrinoCalendarApp.swift; sourceTree = "<group>"; };
+		ACFDF4594D21CDFB2F00656B /* SmartAddTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartAddTests.swift; sourceTree = "<group>"; };
+		AD07754105D0A9CB9E89921D /* SmartAdd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartAdd.swift; sourceTree = "<group>"; };
 		B09F49EEF828DDB98D349D7E /* RecurrenceVectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceVectorTests.swift; sourceTree = "<group>"; };
 		B16693C09CE138A29CFABC67 /* EventFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFormattingTests.swift; sourceTree = "<group>"; };
 		BC947A8E718E9A7AF73F2948 /* EventFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFormatting.swift; sourceTree = "<group>"; };
@@ -96,6 +101,7 @@
 		E612AF342FB4C7B8BF283A61 /* TaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDetailView.swift; sourceTree = "<group>"; };
 		E6F379406268C4D60144F0E7 /* CalendarAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarAPIClientTests.swift; sourceTree = "<group>"; };
 		ECD9C02C8864B4B10473B631 /* Reminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reminder.swift; sourceTree = "<group>"; };
+		FCB92F8071B9266B8D136244 /* smart_add_vectors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = smart_add_vectors.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -136,6 +142,7 @@
 			isa = PBXGroup;
 			children = (
 				248A092CAEDBF458C048DFB9 /* recurrence_vectors.json */,
+				FCB92F8071B9266B8D136244 /* smart_add_vectors.json */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -181,6 +188,7 @@
 				20EDA0EACE6992F2FC049EE0 /* EventDayRange.swift */,
 				1C1C7349A57E84E17BFF7AC8 /* RecurrenceExpander.swift */,
 				ECD9C02C8864B4B10473B631 /* Reminder.swift */,
+				AD07754105D0A9CB9E89921D /* SmartAdd.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -196,6 +204,7 @@
 				86788AFAA2E18F0B6099FD11 /* RecurrenceRuleTests.swift */,
 				B09F49EEF828DDB98D349D7E /* RecurrenceVectorTests.swift */,
 				915FD92FC8610DB35F3A8B21 /* RemindersTests.swift */,
+				ACFDF4594D21CDFB2F00656B /* SmartAddTests.swift */,
 				0767A221BAF9267CB006DF90 /* TasksTests.swift */,
 				1EAEAF68E5F1A9A8C8B269A6 /* Fixtures */,
 			);
@@ -325,6 +334,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9FF05423B33C66F617262BFE /* recurrence_vectors.json in Resources */,
+				CC5E7C15E44BB0F75D730D6A /* smart_add_vectors.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -355,6 +365,7 @@
 				F6EA0529863731CFC62E1A4E /* RemindersView.swift in Sources */,
 				16C755BEBBF485E02AC11BBA /* ReportBugButton.swift in Sources */,
 				240A245C238F2E043B095B2B /* SettingsView.swift in Sources */,
+				A81C3F8A5773B80E7E9477E5 /* SmartAdd.swift in Sources */,
 				D68AF1D61B7C7F02C156FCD1 /* TaskDetailView.swift in Sources */,
 				A5FCC459A9131754274358E7 /* TasksService.swift in Sources */,
 				9451784E61800ADDF6710912 /* TasksView.swift in Sources */,
@@ -373,6 +384,7 @@
 				7FD9A1735D851340830F7490 /* RecurrenceRuleTests.swift in Sources */,
 				71D4D91C3E07AF4C80CC3113 /* RecurrenceVectorTests.swift in Sources */,
 				765A7E7BAAF9CE6403CFA4F3 /* RemindersTests.swift in Sources */,
+				784A3DDD5D2FC65E8E455585 /* SmartAddTests.swift in Sources */,
 				671AF38F9622807DFDA6C815 /* TasksTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

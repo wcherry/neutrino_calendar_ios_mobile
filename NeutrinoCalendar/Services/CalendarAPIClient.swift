@@ -121,6 +121,11 @@ final class CalendarAPIClient {
     }
 
     func updateTask(id: String, _ request: UpdateTaskRequest) async throws -> CalendarTask {
+        try await updateTaskReportingNext(id: id, request).task
+    }
+
+    /// `updateTask`, keeping the `nextTask` the server creates when this completes a repeating task.
+    func updateTaskReportingNext(id: String, _ request: UpdateTaskRequest) async throws -> UpdatedTask {
         try decode(try await send("PATCH", "/api/v1/calendar/tasks/\(id)", body: request), path: "tasks/{id}")
     }
 
