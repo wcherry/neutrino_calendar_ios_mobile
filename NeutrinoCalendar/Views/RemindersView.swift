@@ -4,6 +4,7 @@ import SwiftUI
 /// Today / 3 days / 7 days / All and by search.
 struct RemindersView: View {
     @EnvironmentObject var reminders: RemindersService
+    @EnvironmentObject var router: AppRouter
 
     /// All by default, as on the web: a filter should not open by hiding what was there last time.
     @State private var range: ReminderRange = .all
@@ -64,7 +65,12 @@ struct RemindersView: View {
             ReminderEditorView(mode: mode)
         }
         .refreshable { await reminders.reload() }
-        .task { await reminders.reload() }
+        .task {
+            await reminders.reload()
+            openRequested()
+        }
+        // A tapped notification opens its reminder.
+        .onChange(of: router.openReminderID) { _ in openRequested() }
     }
 
     private func row(_ reminder: Reminder) -> some View {
@@ -77,6 +83,13 @@ struct RemindersView: View {
                     Label("Delete", systemImage: "trash")
                 }
             }
+    }
+
+    private func openRequested() {
+        guard let id = router.openReminderID,
+              let reminder = reminders.reminders.first(where: { $0.id == id }) else { return }
+        router.openReminderID = nil
+        editing = .edit(reminder)
     }
 
     /// The web's wording: a range that hides everything says how much it is hiding, so it doesn't
