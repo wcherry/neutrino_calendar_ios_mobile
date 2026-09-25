@@ -239,7 +239,7 @@ struct TaskDetailView: View {
                 // A rename retitles the event server-side.
                 calendarChanged = true
             }
-            if calendarChanged { await events.reload() }
+            if calendarChanged { events.invalidate() }
             dismiss()
         } catch {
             self.error = error.localizedDescription
