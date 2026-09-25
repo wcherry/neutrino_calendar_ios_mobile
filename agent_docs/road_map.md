@@ -210,19 +210,26 @@ correctly on the phone.
 
 Goal: a calendar that feels native on iOS.
 
-### ⬜ Epic 5 — Views
+### ✅ Epic 5 — Views
 
-* ⬜ Month (with event dots, in the style of iPhone Calendar)
-* ⬜ Week (time grid)
-* ⬜ Day (time grid)
-* ⬜ Agenda (parity with the web `AgendaView`)
-* ⬜ Year overview
-* ⬜ Jump to today, and a date picker to jump to any date
-* ⬜ Current-time indicator
-
-Milestone
-
-The same three views as web, plus Day and Year.
+* ✅ Month: a grid with a dot per event (up to three) and the selected day's events below, as
+  the iPhone's Calendar shows a month; swipe the grid for the next or previous month
+* ✅ Week: seven columns over a 24-hour grid, an all-day row above it, and tapping a day's header
+  opens that day
+* ✅ Day: one column over the same grid, with times on each block
+* ✅ Agenda: parity with the web's `AgendaView` (from Epic 3)
+* ✅ Year: twelve small months; tap one to open it
+* ✅ Jump to today, and the title opens a calendar to jump to any date
+* ✅ Current-time indicator: a red line across today's column, moved every minute
+* The grid follows the web's: 24 hours with 08:00–20:00 at full strength, at least 24 minutes
+  tall per block, and a multi-day timed event filling each day in between. Unlike the web,
+  overlapping events sit side by side (`TimeGridLayout`). The grid opens an hour before now on
+  a day that includes today, and at 08:00 otherwise
+* Events load a month at a time over the web's `monthRange`, and loaded months are kept, so
+  switching views over the same dates costs no requests; a week across a month end loads both
+  months. The chosen view is remembered per device (`ncal.calendar.mode`)
+* ⬜ Web: the week view loads only the cursor's month, so a week across a month end misses the
+  other month's events there
 
 ⸻
 
