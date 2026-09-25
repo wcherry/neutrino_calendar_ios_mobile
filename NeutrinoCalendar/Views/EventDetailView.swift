@@ -1,10 +1,20 @@
 import SwiftUI
 
-/// One occurrence of an event, read-only. Editing is Epic 4.
+/// One occurrence of an event. Neutrino's own events can be edited and deleted from here;
+/// events synced from Google, Outlook or iCloud are read-only until the server can write back to
+/// the provider (Epic 17).
 struct EventDetailView: View {
     @EnvironmentObject var events: EventsService
     @EnvironmentObject var reminders: RemindersService
-    let occurrence: EventOccurrence
+    @Environment(\.dismiss) private var dismiss
+
+    /// Held as state so an edit can show its result here without a round trip.
+    @State private var occurrence: EventOccurrence
+    @State private var editing: EventEditorView.Mode?
+
+    init(occurrence: EventOccurrence) {
+        _occurrence = State(initialValue: occurrence)
+    }
 
     @State private var customReminder: ReminderEditorView.Mode?
 
@@ -44,6 +54,10 @@ struct EventDetailView: View {
                     }
                 }
                 .padding(.vertical, 4)
+            } footer: {
+                if let badge = event.source.badge {
+                    Text("Synced from \(badge). Edit it there: changes can't be sent back to \(badge) yet.")
+                }
             }
 
             if let location = event.location, !location.isEmpty {
@@ -79,6 +93,27 @@ struct EventDetailView: View {
         .task(id: event.id) { await loadAttachments() }
         .task { if !reminders.hasLoaded { await reminders.reload() } }
         .sheet(item: $customReminder) { ReminderEditorView(mode: $0) }
+        .sheet(item: $editing) { mode in
+            EventEditorView(mode: mode) { saved in applyEdit(saved) }
+        }
+        .toolbar {
+            if event.source == .local {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Edit") { editing = .edit(event) }
+                }
+            }
+        }
+    }
+
+    /// Shows an edit's result. A one-off event is followed to its new time; a repeating one
+    /// can't be, since which occurrence this was is gone once the series moves, so the screen
+    /// closes and the calendar shows the new series. A deleted event closes it too.
+    private func applyEdit(_ saved: CalendarEvent?) {
+        guard let saved, saved.recurrenceRule?.isEmpty ?? true, event.recurrenceRule?.isEmpty ?? true else {
+            dismiss()
+            return
+        }
+        occurrence = EventOccurrence(event: saved, start: saved.start, end: saved.end)
     }
 
     // MARK: - Reminders

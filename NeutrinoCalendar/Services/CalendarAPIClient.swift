@@ -109,6 +109,20 @@ final class CalendarAPIClient {
         try await get("/api/v1/calendar/events/\(id)")
     }
 
+    func createEvent(_ request: CreateEventRequest) async throws -> CalendarEvent {
+        try decode(try await send("POST", "/api/v1/calendar/events", body: request), path: "events")
+    }
+
+    /// A partial update, despite the verb: absent fields are left alone.
+    func updateEvent(id: String, _ request: UpdateEventRequest) async throws -> CalendarEvent {
+        try decode(try await send("PUT", "/api/v1/calendar/events/\(id)", body: request), path: "events/{id}")
+    }
+
+    /// Deletes the event, and with it every occurrence of a repeating one and its guests.
+    func deleteEvent(id: String) async throws {
+        _ = try await send("DELETE", "/api/v1/calendar/events/\(id)")
+    }
+
     // MARK: - Tasks
 
     /// Every task, in `position` order. A bare array, unlike the other list endpoints.

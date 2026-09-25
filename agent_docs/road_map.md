@@ -188,16 +188,30 @@ What a user sees on the phone matches the web calendar for the same range.
 
 ⸻
 
-### ⬜ Epic 4 — Event Editing
+### ✅ Epic 4 — Event Editing
 
 Features
 
-* ⬜ Create event (title, start/end, all-day, location, description)
-* ⬜ Edit and delete event
-* ⬜ Repeat picker that writes an RRULE the web understands
-* ⬜ Time-zone picker
-* ⬜ Attendees (email list — stored only, see Epic 18)
-* ⬜ Read-only handling for provider-sourced events until write-back exists (Epic 17)
+* ✅ Create event (title, start/end, all-day, location, notes) from the Calendar tab's +, on the
+  day in view: the next hour today, 09:00 on other days, for an hour
+* ✅ Edit and delete event, from its detail screen. A one-off event's screen follows the edit;
+  a repeating one's closes, since the series has moved
+* ✅ Repeat picker that writes the RRULEs the web writes, and keeps one it has no choice for
+* ✅ Time-zone picker. Times are entered in the chosen zone, and picking a zone keeps the clock
+  times (10:00 stays 10:00, now in New York), as the iPhone's Calendar does
+* ✅ Attendees (an email list; stored only, see Epic 19)
+* ✅ Read-only handling for provider-sourced events until write-back exists (Epic 17): no Edit
+  button, and a line saying where to edit it
+* A repeating event is edited and deleted as a whole series, from the series' own start. Editing
+  or deleting one occurrence needs recurrence exceptions (Epic 21)
+* ⬜ Reminders and attachments while creating, as the web's form offers: on iOS they are added
+  from the event's screen once it exists
+* ⬜ Web: a field cleared in the event form (location, notes, repeat) is sent as `null`, which the
+  server reads as "leave alone", so it keeps its old value. iOS sends `""`
+* ⬜ Web: editing an occurrence of a repeating event saves that occurrence's date as the series'
+  start, dropping every earlier occurrence. iOS edits from the series' own start
+* ⬜ Web: events synced from Google, Outlook or iCloud can be edited there, though the change
+  never reaches the provider
 
 Milestone
 
