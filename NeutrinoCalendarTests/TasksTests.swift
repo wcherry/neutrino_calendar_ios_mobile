@@ -119,7 +119,7 @@ final class TasksServiceTests: XCTestCase {
         MockURLProtocol.respond(status: 200, body: task("a", done: true))
         await service.setDone(try XCTUnwrap(service.task(id: "a")), true)
         XCTAssertEqual(MockURLProtocol.lastRequest?.httpMethod, "PATCH")
-        XCTAssertEqual(MockURLProtocol.lastJSON?.keys.sorted(), ["done"])
+        XCTAssertEqual(MockURLProtocol.lastJSON?.keys.sorted(), ["done", "timezone"])
         XCTAssertEqual(service.done.map(\.id), ["a"])
     }
 
@@ -201,4 +201,50 @@ final class TasksServiceTests: XCTestCase {
         XCTAssertTrue(service.tasks.isEmpty)
         XCTAssertFalse(service.hasLoaded)
     }
+
+    // MARK: Smart Add
+
+    func testCompletingARepeatingTaskAddsTheNextOccurrence() async throws {
+        await load([task("a", "Water plants")])
+        let next = task("b", "Water plants", due: "2026-10-08T00:00:00Z")
+        MockURLProtocol.respond(status: 200, body: """
+        {"id":"a","title":"Water plants","notes":null,"done":true,"dueDate":null,"position":0,
+         "listId":null,"eventId":null,"createdAt":"2026-09-01T00:00:00Z",
+         "updatedAt":"2026-09-01T00:00:00Z","nextTask":\(next)}
+        """)
+        await service.setDone(try XCTUnwrap(service.task(id: "a")), true,
+                              timeZone: TimeZone(identifier: "America/Los_Angeles")!)
+        XCTAssertEqual(MockURLProtocol.lastJSON?["timezone"] as? String, "America/Los_Angeles")
+        XCTAssertEqual(service.done.map(\.id), ["a"])
+        XCTAssertEqual(service.open.map(\.id), ["b"])
+    }
+
+    func testCreatingFromSmartAddSendsItsFields() async throws {
+        MockURLProtocol.respond(status: 201, body: task("new", "Buy milk"))
+        let context = SmartAdd.Context(today: "2026-09-25", now: "14:00")
+        try await service.create(SmartAdd.parse("Buy milk ^tomorrow #errands !2", context: context))
+        XCTAssertEqual(MockURLProtocol.lastJSON?["title"] as? String, "Buy milk")
+        XCTAssertEqual(MockURLProtocol.lastJSON?["dueDate"] as? String, "2026-09-26T00:00:00Z")
+        XCTAssertEqual(MockURLProtocol.lastJSON?["tags"] as? [String], ["errands"])
+        XCTAssertEqual(MockURLProtocol.lastJSON?["priority"] as? Int, 2)
+        XCTAssertEqual(service.tasks.map(\.id), ["new"])
+    }
+
+    func testDecodesTheSmartAddFields() throws {
+        let json = """
+        {"id":"a","title":"t","notes":null,"done":false,"dueDate":"2026-10-02T22:00:00Z",
+         "position":0,"eventId":null,"dueHasTime":true,"priority":1,"tags":["home"],
+         "recurrenceRule":"FREQ=DAILY","repeatAfterCompletion":true,"estimateMinutes":30,
+         "location":"Shed"}
+        """
+        let decoded = try JSONDecoder().decode(CalendarTask.self, from: Data(json.utf8))
+        XCTAssertTrue(decoded.dueHasTime)
+        XCTAssertEqual(decoded.priority, 1)
+        XCTAssertEqual(decoded.tags, ["home"])
+        XCTAssertEqual(decoded.recurrenceRule, "FREQ=DAILY")
+        XCTAssertTrue(decoded.repeatAfterCompletion)
+        XCTAssertEqual(decoded.estimateMinutes, 30)
+        XCTAssertEqual(decoded.location, "Shed")
+    }
 }
+

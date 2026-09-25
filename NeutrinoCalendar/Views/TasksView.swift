@@ -19,6 +19,14 @@ struct TasksView: View {
                     .submitLabel(.done)
                     .onSubmit { Task { await add() } }
                     .disabled(isAdding)
+                    .autocorrectionDisabled()
+                if let parsed, parsed.hasDetails {
+                    SmartAddPreview(parsed: parsed)
+                } else if composerFocused && newTitle.isEmpty {
+                    Text("Try ^fri 3pm #tag !1 *weekly")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if let addError {
                     Label(addError, systemImage: "exclamationmark.triangle")
                         .font(.footnote)
@@ -81,16 +89,26 @@ struct TasksView: View {
         Task { await tasks.reorderOpen(to: ids) }
     }
 
+    /// What Smart Add reads in the box, recomputed as it is typed so the preview is what Return
+    /// will create.
+    private var parsed: SmartAddResult? {
+        let text = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : SmartAdd.parse(text)
+    }
+
     /// Adds the task and keeps the box focused, so the next one can be typed straight away. What
     /// was typed stays put if the add fails: retyping it because the network blinked is worse.
     private func add() async {
-        let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty, !isAdding else { return }
+        guard let parsed, !isAdding else { return }
+        guard !parsed.title.isEmpty else {
+            addError = "Add a title as well as the details."
+            return
+        }
         isAdding = true
         addError = nil
         defer { isAdding = false }
         do {
-            try await tasks.create(title: title)
+            try await tasks.create(parsed)
             newTitle = ""
             composerFocused = true
         } catch {
@@ -138,19 +156,84 @@ struct TaskRow: View {
     @ViewBuilder
     private var badges: some View {
         let parts: [(String, String)] = [
+            task.priority.map { ("!\($0)", "flag.fill") },
             task.dueDateText.map { ($0, "clock") },
+            task.recurrenceRule == nil ? nil : ("Repeats", "repeat"),
+            task.location.map { ($0, "mappin") },
             task.eventId == nil ? nil : ("On calendar", "calendar"),
             task.notes == nil ? nil : ("Notes", "doc.text"),
         ].compactMap { $0 }
-        if !parts.isEmpty {
+        if !parts.isEmpty || !task.tags.isEmpty {
             HStack(spacing: 10) {
                 ForEach(parts, id: \.0) { text, symbol in
                     Label(text, systemImage: symbol)
+                }
+                if !task.tags.isEmpty {
+                    Text(task.tags.map { "#\($0)" }.joined(separator: " "))
                 }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
             .labelStyle(.titleAndIcon)
         }
+    }
+}
+
+// MARK: - SmartAddPreview
+
+/// One chip per field Smart Add found in the line being typed, so a date picked up from the title
+/// is visible before Return commits it.
+struct SmartAddPreview: View {
+    let parsed: SmartAddResult
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(chips) { chip in
+                    Label(chip.text, systemImage: chip.symbol)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.secondary.opacity(0.12), in: Capsule())
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Smart Add will set " + chips.map(\.text).joined(separator: ", "))
+    }
+
+    private struct Chip: Identifiable {
+        let text: String
+        let symbol: String
+        var id: String { symbol + text }
+    }
+
+    private var chips: [Chip] {
+        var chips: [Chip] = []
+        if let due = parsed.due { chips.append(Chip(text: Self.format(due), symbol: "calendar")) }
+        if let start = parsed.start { chips.append(Chip(text: "starts \(Self.format(start))", symbol: "play.circle")) }
+        if let priority = parsed.priority { chips.append(Chip(text: "Priority \(priority)", symbol: "flag.fill")) }
+        chips += parsed.tags.map { Chip(text: "#\($0)", symbol: "tag") }
+        if let rule = parsed.recurrenceRule {
+            chips.append(Chip(text: SmartAdd.describeRepeat(rule, after: parsed.repeatAfterCompletion), symbol: "repeat"))
+        }
+        if let minutes = parsed.estimateMinutes { chips.append(Chip(text: SmartAdd.formatEstimate(minutes), symbol: "hourglass")) }
+        if let location = parsed.location { chips.append(Chip(text: location, symbol: "mappin")) }
+        if let note = parsed.note { chips.append(Chip(text: note, symbol: "note.text")) }
+        return chips
+    }
+
+    /// "Fri, Oct 2" or "Fri, Oct 2, 3:00 PM", in this zone.
+    static func format(_ value: SmartDate, calendar: Calendar = .current) -> String {
+        let p = value.date.split(separator: "-").compactMap { Int($0) }
+        let hm = value.time?.split(separator: ":").compactMap { Int($0) } ?? [0, 0]
+        guard p.count == 3, hm.count == 2,
+              let date = calendar.date(from: DateComponents(year: p[0], month: p[1], day: p[2],
+                                                            hour: hm[0], minute: hm[1])) else {
+            return value.date
+        }
+        var style = Date.FormatStyle(date: .omitted, time: .omitted).weekday(.abbreviated).month(.abbreviated).day()
+        if value.time != nil { style = style.hour().minute() }
+        return date.formatted(style)
     }
 }
