@@ -71,7 +71,8 @@ final class EventsServiceTests: XCTestCase {
         config.protocolClasses = [MockURLProtocol.self]
         let client = CalendarAPIClient(session: URLSession(configuration: config),
                                        baseURL: { "https://example.test" }, token: { "tok" })
-        return EventsService(client: client, calendar: calendar, now: { self.date("2026-09-15T19:00:00Z") })
+        return EventsService(client: client, calendar: calendar, weekStart: .sunday,
+                             now: { self.date("2026-09-15T19:00:00Z") })
     }
 
     private static let weekly = """

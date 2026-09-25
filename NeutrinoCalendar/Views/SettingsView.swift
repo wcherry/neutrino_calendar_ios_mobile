@@ -4,12 +4,27 @@ import NeutrinoAuth
 
 struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var events: EventsService
     @AppStorage(LayoutDensity.storageKey) private var compactLayout = false
+    @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.default.rawValue
 
     var body: some View {
         List {
             Section("Account") {
                 LabeledContent("Server", value: NeutrinoStorage.serverHost)
+            }
+
+            Section {
+                Picker("Week starts on", selection: $weekStart) {
+                    ForEach(WeekStart.allCases) { Text($0.label).tag($0.rawValue) }
+                }
+            } header: {
+                Text("Calendar")
+            } footer: {
+                Text("Used by the month, week and year views and every date picker, as on the web.")
+            }
+            .onChange(of: weekStart) { raw in
+                events.setWeekStart(WeekStart(rawValue: raw) ?? .default)
             }
 
             Section {

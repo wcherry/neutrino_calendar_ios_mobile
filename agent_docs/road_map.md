@@ -451,7 +451,9 @@ Reuse Neutrino's sharing model.
 * ⬜ Search (title, location, description, attendees; offline over the local store)
 * ✅ Compact layout: a Settings switch for tighter rows, section gaps and screen margins (off
   by default; the section gaps and margins need iOS 17)
-* ⬜ Week-start preference, 24 h clock, week numbers, alternate calendars
+* ✅ Week-start preference: Sunday, Monday or Saturday, the web's choices and default (Sunday),
+  stored as the web stores it (a JavaScript day number) under `ncal.calendar.weekStart`
+* ⬜ 24 h clock, week numbers, alternate calendars
 * ⬜ Travel time and "leave now" alerts (MapKit ETA)
 * ⬜ Handoff to the web calendar
 * ⬜ Drag & drop (a Drive file onto an event, a task onto the time grid)
