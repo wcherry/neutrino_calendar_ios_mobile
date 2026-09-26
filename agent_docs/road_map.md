@@ -290,15 +290,35 @@ the user rather than resolved silently.
 
 ⸻
 
-### ⬜ Epic 10 — Sync Engine
+### ✅ Epic 10 — Sync Engine
 
-* ⬜ Background refresh (`BGAppRefreshTask`)
-* ⬜ Conflict detection on `updatedAt`
-* ⬜ Retry queue
-* ⬜ Pull-to-refresh that also calls `POST /sync/trigger` for connected providers
-* ⬜ **Backend:** a delta endpoint (`GET /events/changes?since=`) so the client stops re-pulling
-  whole ranges
-* ⬜ **Backend:** a calendar channel on the file-events relay for live updates, as Notes has
+* ✅ **Backend:** events are soft-deleted (`deleted_at`, migration 00137). Every read skips
+  deleted rows; the tombstones are kept for 90 days, then a daily job purges them
+* ✅ **Backend:** a delta endpoint, `GET /events/changes?since=`: the events changed and the ids
+  deleted since a cursor. With no `since`, it answers only a cursor to start from. A cursor
+  older than the tombstones answers `fullResyncRequired`
+* ✅ **Backend:** a live `calendar.changed` signal on the per-user notification socket (the one
+  `drive.changed` uses), after any successful write under `/api/v1/calendar`. It carries the
+  writer's `X-Neutrino-Client-Id`, so a client can skip the echo of its own writes. The web
+  now drops any signal it doesn't use, instead of showing it as a notification
+* ✅ Loaded months are kept up to date from the changes feed: on a live signal, when the socket
+  reconnects, when the app comes forward, and from background refresh. Changed events are
+  merged into each loaded month by the server's own range test, and the months are expanded
+  again. Reminders and tasks are small whole lists, so they are reloaded
+* ✅ Conflict detection: before saving an event, reminder or task edit, the server's copy is
+  read. The save stops only if the thing was deleted, or one of the *same* fields was changed
+  to something else elsewhere (edits send only what changed, so other fields can't be
+  overwritten). The alert offers Save Mine Anyway or Discard My Changes. `updatedAt` isn't used
+  because a provider sync bumps it without changing anything
+* ✅ Retry queue: an edit, completion or delete that fails because the network is down is
+  queued (saved to a file, so it survives a relaunch) and shown at once. It replays in order
+  when the network comes back, on reconnect, on foreground, and from background refresh. A 404
+  or other 4xx is dropped; a 5xx is retried up to five times. A "changes waiting to sync"
+  banner shows while writes are queued. Creates aren't queued, because replaying one could
+  make a duplicate
+* ✅ Pull-to-refresh calls `POST /sync/trigger` for the connected providers first
+* ✅ Background refresh (`BGAppRefreshTask`) replays the queue and pulls changes as well as
+  re-planning alerts
 
 ⸻
 
@@ -364,18 +384,29 @@ Goal: parity with the web sidebars.
 * ✖ Task lists (create, color, rename) and a task in several lists: **dropped**. The web
   stopped grouping by lists because they are being replaced by tags, so tasks are one flat
   list in the server's order on both clients. Revisit when tags reach tasks
-* ⬜ Attach a Drive file to a task (Epic 14)
+* ✅ Attach a Drive file to a task (Epic 14)
 * ⬜ Delete a task. The server has no route for it, and the web can't either
 * ⬜ Add tasks from a `.txt` or `.csv` file, as the web can
 
 ⸻
 
-### ⬜ Epic 14 — Attachments
+### ✅ Epic 14 — Attachments
 
-* ⬜ Attach a Drive file to an event or task (a Drive picker like web's `DriveFilePicker`)
-* ⬜ Upload from Photos or Files, then attach
-* ⬜ Preview with Quick Look and decrypt E2EE Drive files on the device (reuse `NeutrinoCrypto`)
-* ⬜ Open in Drive, Docs, Sheets or Notes through Universal Links
+* ✅ Attach a Drive file to an event or task, with a Drive picker like the web's `DriveFilePicker`
+  (folders, filter by name). Events and tasks share one attachments section, notes included
+* ✅ Add from Photos or Files. The file is encrypted on the phone and uploaded into Drive's
+  "Attachments" folder, the one the web uses, then attached. Like the web, it never falls back to
+  uploading in the clear. If its key can't be stored, the upload is removed rather than left
+  unreadable
+* ✅ Preview with Quick Look. The file is decrypted on the device with the account key and cached
+  under its content version (complete file protection; cleared on sign-out). Files stored in the
+  clear before encryption open as they are. The crypto is `DriveFileCrypto`, added to
+  `NeutrinoCrypto`; tests show files written by the web's `crypto.ts` open here and vice versa
+* ✅ Open in Docs, Sheets, Slides, Notes or Drive through Universal Links (`NeutrinoAppLink`,
+  universal links only). If the app isn't installed, the file can be previewed here instead
+* ✅ Settings › Encryption: the key comes from the keyring the Neutrino apps share, or from this
+  app's own store. Without one, the section offers setting up encryption, pairing with another
+  device, or restoring from a recovery kit
 
 ⸻
 

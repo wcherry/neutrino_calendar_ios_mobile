@@ -19,6 +19,16 @@ enum CalendarAPIError: LocalizedError, Equatable {
         case .decodingError:              return "The server sent something this version of Calendar can't read."
         }
     }
+
+    /// The request never got an answer: offline, or the server unreachable. The one failure a
+    /// retry later can fix, and so the one a write is queued for.
+    var isNetwork: Bool {
+        if case .networkError = self { return true }
+        return false
+    }
+
+    /// The server answered 404: the thing is gone, deleted here or somewhere else.
+    var isNotFound: Bool { self == .serverError(statusCode: 404) }
 }
 
 // MARK: - CalendarAPIClient
@@ -38,6 +48,12 @@ final class CalendarAPIClient {
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NeutrinoCalendar",
                                 category: "CalendarAPIClient")
+
+    /// Sent as `X-Neutrino-Client-Id` on every request, and compared with a live signal's
+    /// `originClientId`, so the app can skip the echo of its own writes. New each launch: it names
+    /// this running app, not the device.
+    static let clientID = UUID().uuidString
+    static let clientIDHeader = "X-Neutrino-Client-Id"
 
     init(session: URLSession = .shared,
          baseURL: @escaping () -> String = { NeutrinoStorage.serverHost },
@@ -84,6 +100,15 @@ final class CalendarAPIClient {
         return response.attachments
     }
 
+    func addEventAttachment(eventID: String, _ request: CreateAttachmentRequest) async throws -> Attachment {
+        try decode(try await send("POST", "/api/v1/calendar/events/\(eventID)/attachments", body: request),
+                   path: "events/{id}/attachments")
+    }
+
+    func deleteEventAttachment(eventID: String, attachmentID: String) async throws {
+        _ = try await send("DELETE", "/api/v1/calendar/events/\(eventID)/attachments/\(attachmentID)")
+    }
+
     /// Every reminder the user has, linked or not. The server can filter by `eventId` or `taskId`,
     /// but one list is what the Reminders tab and the event screens both draw from.
     func reminders() async throws -> [Reminder] {
@@ -103,6 +128,28 @@ final class CalendarAPIClient {
 
     func deleteReminder(id: String) async throws {
         _ = try await send("DELETE", "/api/v1/calendar/reminders/\(id)")
+    }
+
+    /// What changed since `since` (a previous answer's `cursor`); with no cursor, only a cursor to
+    /// start from. Take one before loading, so nothing changed during the load is missed.
+    func eventChanges(since: String?) async throws -> EventChanges {
+        try await get("/api/v1/calendar/events/changes",
+                      query: since.map { [URLQueryItem(name: "since", value: $0)] } ?? [])
+    }
+
+    /// Asks the server to pull from every connected provider (Google, Outlook, Apple) now. Answers
+    /// once the pull is done, so a reload straight after sees what it brought in.
+    func triggerProviderSync() async throws {
+        _ = try await send("POST", "/api/v1/calendar/sync/trigger", body: TriggerSyncRequest())
+    }
+
+    func reminder(id: String) async throws -> Reminder {
+        try await get("/api/v1/calendar/reminders/\(id)")
+    }
+
+    /// Sends a write that was queued while offline, exactly as it was first attempted.
+    func replay(_ write: PendingWrite) async throws {
+        _ = try await send(write.method, write.path, bodyData: write.body)
     }
 
     func event(id: String) async throws -> CalendarEvent {
@@ -167,13 +214,69 @@ final class CalendarAPIClient {
     }
 
     func addTaskNote(taskID: String, note: String) async throws -> TaskAttachment {
-        try decode(try await send("POST", "/api/v1/calendar/tasks/\(taskID)/attachments",
-                                  body: CreateTaskAttachmentRequest(note: note)),
+        try await addTaskAttachment(taskID: taskID, .note(note))
+    }
+
+    func addTaskAttachment(taskID: String, _ request: CreateAttachmentRequest) async throws -> Attachment {
+        try decode(try await send("POST", "/api/v1/calendar/tasks/\(taskID)/attachments", body: request),
                    path: "tasks/{id}/attachments")
     }
 
     func deleteTaskAttachment(taskID: String, attachmentID: String) async throws {
         _ = try await send("DELETE", "/api/v1/calendar/tasks/\(taskID)/attachments/\(attachmentID)")
+    }
+
+    // MARK: - Drive
+
+    /// A folder's subfolders and files. The root's id is the user's id.
+    func driveFolder(id: String) async throws -> DriveFolderContents {
+        try await get("/api/v1/drive/folders/\(id)")
+    }
+
+    func createDriveFolder(name: String, parentID: String? = nil) async throws -> DriveFolder {
+        try decode(try await send("POST", "/api/v1/drive/folders",
+                                  body: CreateFolderRequest(name: name, parentId: parentID)),
+                   path: "drive/folders")
+    }
+
+    func driveFileMetadata(id: String) async throws -> DriveFile {
+        try await get("/api/v1/drive/files/\(id)/metadata")
+    }
+
+    /// The file's stored bytes: ciphertext for an encrypted file.
+    func driveFileContent(id: String) async throws -> Data {
+        try await send("GET", "/api/v1/drive/files/\(id)")
+    }
+
+    /// The file's sealed DEK, or nil when none is stored for this user (a plaintext file).
+    func driveFileKey(id: String) async throws -> DriveFileKey? {
+        do {
+            return try await get("/api/v1/drive/files/\(id)/key")
+        } catch let error as CalendarAPIError where error.isNotFound {
+            return nil
+        }
+    }
+
+    func setDriveFileKey(id: String, _ key: DriveFileKey) async throws {
+        _ = try await send("PUT", "/api/v1/drive/files/\(id)/key", body: key)
+    }
+
+    /// Posts an already-encrypted file. Part order matters: the server stops reading at the file
+    /// part, so every field goes before it.
+    func uploadDriveFile(ciphertext: Data, name: String, mimeType: String, folderID: String?,
+                         encryptedMetadata: String) async throws -> DriveFile {
+        var form = MultipartFormBody()
+        form.appendField(name: "encrypted_metadata", value: encryptedMetadata)
+        form.appendField(name: "folder_id", value: folderID)
+        form.appendFile(name: "file", fileName: name, mimeType: mimeType, data: ciphertext)
+        return try decode(try await send("POST", "/api/v1/drive/files/upload",
+                                         bodyData: form.finalized(), contentType: form.contentType),
+                          path: "drive/files/upload")
+    }
+
+    /// Moves a file to the Drive trash.
+    func trashDriveFile(id: String) async throws {
+        _ = try await send("DELETE", "/api/v1/drive/files/\(id)")
     }
 
     // MARK: - Transport
@@ -193,6 +296,11 @@ final class CalendarAPIClient {
 
     private func send(_ method: String, _ path: String, query: [URLQueryItem] = [],
                       body: (any Encodable)? = nil) async throws -> Data {
+        try await send(method, path, query: query, bodyData: body.map { try JSONEncoder().encode($0) })
+    }
+
+    private func send(_ method: String, _ path: String, query: [URLQueryItem] = [],
+                      bodyData: Data?, contentType: String = "application/json") async throws -> Data {
         guard var components = URLComponents(string: baseURL() + path) else {
             throw CalendarAPIError.serverError(statusCode: 0)
         }
@@ -206,9 +314,10 @@ final class CalendarAPIClient {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        if let body {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(body)
+        request.setValue(Self.clientID, forHTTPHeaderField: Self.clientIDHeader)
+        if let bodyData {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+            request.httpBody = bodyData
         }
 
         logger.debug("--> \(method, privacy: .public) \(path, privacy: .public)")
@@ -235,3 +344,18 @@ final class CalendarAPIClient {
         return data
     }
 }
+
+// MARK: - Sync DTOs
+
+/// `EventChangesResponse` in `neutrino/src/calendar/events/dto.rs`.
+struct EventChanges: Decodable {
+    let events: [CalendarEvent]
+    let deletedIds: [String]
+    /// Pass as `since` next time.
+    let cursor: String
+    /// The cursor is older than the server keeps deletions for: drop everything and load afresh.
+    let fullResyncRequired: Bool
+}
+
+/// No connection id: sync every provider the user has connected.
+struct TriggerSyncRequest: Encodable {}

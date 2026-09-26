@@ -128,7 +128,9 @@ final class TasksServiceTests: XCTestCase {
         let original = try XCTUnwrap(service.task(id: "a"))
         MockURLProtocol.respond(status: 200, body: task("a", "Fans"))
 
-        try await service.update(original, title: "Fans", notes: "  ", dueDay: nil, calendar: pacific)
+        // Past the conflict check (SyncTests covers it), to the request itself.
+        try await service.update(original, title: "Fans", notes: "  ", dueDay: nil, calendar: pacific,
+                                 overwrite: true)
 
         XCTAssertEqual(MockURLProtocol.lastJSON?.keys.sorted(), ["dueDate", "notes"])
         XCTAssertTrue(MockURLProtocol.lastJSON?["notes"] is NSNull)

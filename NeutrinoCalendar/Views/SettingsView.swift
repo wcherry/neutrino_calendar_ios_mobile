@@ -1,6 +1,7 @@
 import SwiftUI
 import NeutrinoCore
 import NeutrinoAuth
+import NeutrinoCrypto
 
 struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
@@ -8,6 +9,9 @@ struct SettingsView: View {
     @EnvironmentObject var remindersService: RemindersService
     @AppStorage(ReminderNotifications.enabledKey) private var alertsEnabled = true
     @AppStorage(LayoutDensity.storageKey) private var compactLayout = false
+    @EnvironmentObject var keyProvisioning: KeyProvisioningService
+    @State private var encryptionFlow: EncryptionFlow?
+    @State private var encryptionRevision = 0
 
     var body: some View {
         List {
@@ -42,6 +46,8 @@ struct SettingsView: View {
                 Text("Less space around rows, sections and the edges of the screen, so more fits at once.")
             }
 
+            EncryptionSection(flow: $encryptionFlow, revision: encryptionRevision)
+
             // Filled by Epic 17: Google and Outlook over OAuth, iCloud over CalDAV.
             Section("Connected Calendars") {
                 Text("Connect Google, Outlook or iCloud from the web app for now.")
@@ -64,6 +70,7 @@ struct SettingsView: View {
         }
         .densityList()
         .navigationTitle("Settings")
+        .encryptionFlows($encryptionFlow, provisioning: keyProvisioning) { encryptionRevision += 1 }
     }
 
     private var notificationsFooter: String {

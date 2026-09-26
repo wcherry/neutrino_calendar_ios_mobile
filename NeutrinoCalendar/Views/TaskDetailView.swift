@@ -24,13 +24,16 @@ struct TaskDetailView: View {
     /// The slot as it was when the screen opened, so Save only moves the event if it changed.
     @State private var original: Slot?
 
-    @State private var attachments: [TaskAttachment] = []
-    @State private var newNote = ""
     @State private var newReminder: ReminderEditorView.Mode?
 
     @State private var seeded = false
+    /// The task as the form was filled from it. An edit is measured from this, not from the live
+    /// list, which a change made elsewhere can reload while the form is open.
+    @State private var base: CalendarTask?
     @State private var isSaving = false
     @State private var error: String?
+    @State private var conflict: EditConflict?
+    @StateObject private var attachmentsPresenter = AttachmentsPresenter()
 
     /// An hour, the length a task gets when it is first put on the calendar, as on the web.
     private static let defaultSlot: TimeInterval = 60 * 60
@@ -53,6 +56,7 @@ struct TaskDetailView: View {
             }
         }
         .densityList()
+        .attachmentPresentations(attachmentsPresenter)
         .navigationTitle("Task")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -63,6 +67,16 @@ struct TaskDetailView: View {
         }
         .sheet(item: $newReminder) { ReminderEditorView(mode: $0) }
         .task(id: taskID) { await seed() }
+        .editConflictAlert($conflict,
+                           overwrite: { Task { await save(overwrite: true) } },
+                           discard: {
+                               // Shows the task as it is now, or "no longer available".
+                               Task {
+                                   await tasks.reload()
+                                   seeded = false
+                                   await seed()
+                               }
+                           })
     }
 
     @ViewBuilder
@@ -121,30 +135,7 @@ struct TaskDetailView: View {
             }
         }
 
-        Section {
-            ForEach(attachments) { attachment in
-                Group {
-                    if let note = attachment.note, attachment.fileId == nil {
-                        Label(note, systemImage: "note.text").textSelection(.enabled)
-                    } else {
-                        // Opening a Drive file means decrypting it on the device: Epic 14.
-                        Label(attachment.name ?? "Drive file", systemImage: "doc")
-                    }
-                }
-                .swipeActions {
-                    Button(role: .destructive) { Task { await delete(attachment, from: task) } } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                }
-            }
-            TextField("Add a note", text: $newNote)
-                .submitLabel(.done)
-                .onSubmit { Task { await addNote(to: task) } }
-        } header: {
-            Text("Attachments")
-        } footer: {
-            Text("Attaching a Drive file isn't available on iPhone yet.")
-        }
+        AttachmentsSection(owner: tasks.attachmentOwner(taskID: task.id), presenter: attachmentsPresenter)
     }
 
     /// Moving the start keeps the slot's length rather than inverting it, as on the web.
@@ -173,6 +164,7 @@ struct TaskDetailView: View {
     private func seed() async {
         guard !seeded, let task else { return }
         seeded = true
+        base = task
         title = task.title
         notes = task.notes ?? ""
         if let day = task.dueDay() {
@@ -184,7 +176,6 @@ struct TaskDetailView: View {
         end = defaultStart.addingTimeInterval(Self.defaultSlot)
         onCalendar = task.eventId != nil
 
-        async let attachmentsLoad = tasks.attachments(for: task)
         if !reminders.hasLoaded { await reminders.reload() }
         if let event = try? await tasks.event(for: task) {
             allDay = event.allDay
@@ -198,7 +189,6 @@ struct TaskDetailView: View {
             }
             original = Slot(start: start, end: end, allDay: allDay)
         }
-        attachments = (try? await attachmentsLoad) ?? []
     }
 
     /// 09:00 on the due day, or the top of the next hour: the web's `defaultStart`.
@@ -217,8 +207,8 @@ struct TaskDetailView: View {
 
     // MARK: - Saving
 
-    private func save() async {
-        guard let task else { return }
+    private func save(overwrite: Bool = false) async {
+        guard let task = base ?? task else { return }
         isSaving = true
         error = nil
         defer { isSaving = false }
@@ -226,7 +216,7 @@ struct TaskDetailView: View {
             // The row first: the event carries the task's title, and the server reads it from
             // the stored row when scheduling.
             let saved = try await tasks.update(task, title: title.trimmingCharacters(in: .whitespaces),
-                                               notes: notes, dueDay: hasDue ? due : nil)
+                                               notes: notes, dueDay: hasDue ? due : nil, overwrite: overwrite)
             let slot = Slot(start: start, end: end, allDay: allDay)
             var calendarChanged = false
             if onCalendar, saved.eventId == nil || slot != original {
@@ -241,28 +231,8 @@ struct TaskDetailView: View {
             }
             if calendarChanged { events.invalidate() }
             dismiss()
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    // MARK: - Attachments
-
-    private func addNote(to task: CalendarTask) async {
-        let note = newNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !note.isEmpty else { return }
-        do {
-            attachments.append(try await tasks.addNote(note, to: task))
-            newNote = ""
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    private func delete(_ attachment: TaskAttachment, from task: CalendarTask) async {
-        do {
-            try await tasks.deleteAttachment(attachment, from: task)
-            attachments.removeAll { $0.id == attachment.id }
+        } catch let conflict as EditConflict {
+            self.conflict = conflict
         } catch {
             self.error = error.localizedDescription
         }

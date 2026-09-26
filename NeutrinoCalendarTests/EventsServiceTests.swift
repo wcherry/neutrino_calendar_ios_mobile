@@ -74,6 +74,11 @@ final class EventsServiceTests: XCTestCase {
         return EventsService(client: client, calendar: calendar, now: { self.date("2026-09-15T19:00:00Z") })
     }
 
+    /// Month loads, leaving out the changes-feed cursor each load may ask for first.
+    private var listRequests: Int {
+        MockURLProtocol.requests.filter { $0.url?.path == "/api/v1/calendar/events" }.count
+    }
+
     private static let weekly = """
     {"events":[{"id":"w","title":"Weekly","startTime":"2026-09-02T17:00:00Z",
       "endTime":"2026-09-02T18:00:00Z","allDay":false,"recurrenceRule":"FREQ=WEEKLY",
@@ -100,10 +105,10 @@ final class EventsServiceTests: XCTestCase {
         await service.ensureLoaded(for: .month)
         await service.ensureLoaded(for: .day)
         await service.ensureLoaded(for: .agenda)
-        XCTAssertEqual(MockURLProtocol.requests.count, 1, "the same month, three views, one request")
+        XCTAssertEqual(listRequests, 1, "the same month, three views, one request")
 
         await service.reload(for: .month)
-        XCTAssertEqual(MockURLProtocol.requests.count, 2)
+        XCTAssertEqual(listRequests, 2)
     }
 
     /// A week that crosses a month end needs both months, each fetched with the web's range.

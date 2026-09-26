@@ -15,6 +15,8 @@ final class TasksService: ObservableObject {
     @Published var error: String?
 
     private let client: CalendarAPIClient
+    /// Where an edit or completion goes when the server can't be reached.
+    var pending: PendingWrites?
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NeutrinoCalendar",
                                 category: "TasksService")
 
@@ -75,11 +77,15 @@ final class TasksService: ObservableObject {
     /// Completing a repeating task leaves it done and the server creates the next occurrence as a
     /// new task, which is added to the list here rather than waiting for a reload.
     func setDone(_ task: CalendarTask, _ done: Bool, timeZone: TimeZone = .current) async {
+        let request = UpdateTaskRequest(done: done, timezone: timeZone.identifier)
         do {
-            let result = try await client.updateTaskReportingNext(
-                id: task.id, UpdateTaskRequest(done: done, timezone: timeZone.identifier))
+            let result = try await client.updateTaskReportingNext(id: task.id, request)
             replace(result.task)
             if let next = result.nextTask { replace(next) }
+        } catch let error as CalendarAPIError where error.isNetwork && pending != nil {
+            // The next occurrence of a repeating task arrives with the reload after the replay.
+            pending?.enqueue(PendingWrite(method: "PATCH", path: Self.path(task), json: request))
+            replace(task.with(done: done))
         } catch {
             logger.error("setDone failed: \(error, privacy: .public)")
             self.error = error.localizedDescription
@@ -87,9 +93,44 @@ final class TasksService: ObservableObject {
     }
 
     /// Saves the task row. Only what changed is sent, and a field emptied is sent as a clear.
+    ///
+    /// Unless `overwrite`, the save stops with `EditConflict` when the task was deleted, or one of
+    /// the same fields changed, somewhere else since `task` was read. Offline, it is queued.
     @discardableResult
     func update(_ task: CalendarTask, title: String, notes: String, dueDay: Date?,
-                calendar: Calendar = .current) async throws -> CalendarTask {
+                calendar: Calendar = .current, overwrite: Bool = false) async throws -> CalendarTask {
+        let request = Self.request(from: task, title: title, notes: notes, dueDay: dueDay, calendar: calendar)
+        guard request != UpdateTaskRequest() else { return task }
+        do {
+            if !overwrite {
+                // There is no single-task read; the list is small.
+                guard let current = try await client.tasks().first(where: { $0.id == task.id }) else {
+                    tasks.removeAll { $0.id == task.id }
+                    throw EditConflict.deletedElsewhere
+                }
+                let theirs = Self.request(from: task, title: current.title, notes: current.notes ?? "",
+                                          dueDay: current.dueDay(in: calendar), calendar: calendar)
+                let clashes = EditConflict.clashes(mine: request, theirs: theirs)
+                if !clashes.isEmpty { throw EditConflict.changedElsewhere(clashes) }
+            }
+            let updated = try await client.updateTask(id: task.id, request)
+            replace(updated)
+            return updated
+        } catch let error as CalendarAPIError where error.isNetwork && pending != nil {
+            pending?.enqueue(PendingWrite(method: "PATCH", path: Self.path(task), json: request))
+            let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+            let local = task.with(title: title, notes: .some(trimmedNotes.isEmpty ? nil : trimmedNotes),
+                                  dueDate: .some(dueDay.flatMap { ServerDate.parse(CalendarTask.dueDateValue(for: $0, in: calendar)) }),
+                                  dueHasTime: request.dueHasTime)
+            replace(local)
+            return local
+        }
+    }
+
+    /// The fields that differ between `task` and the values given: an edit's request, or, given
+    /// the server's current values, what was changed elsewhere.
+    static func request(from task: CalendarTask, title: String, notes: String, dueDay: Date?,
+                        calendar: Calendar) -> UpdateTaskRequest {
         var request = UpdateTaskRequest()
         if title != task.title { request.title = title }
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -103,11 +144,10 @@ final class TasksService: ObservableObject {
             // A day picked here is a day: a due time set by Smart Add goes with the old date.
             if newDue != nil && task.dueHasTime { request.dueHasTime = false }
         }
-        guard request != UpdateTaskRequest() else { return task }
-        let updated = try await client.updateTask(id: task.id, request)
-        replace(updated)
-        return updated
+        return request
     }
+
+    private static func path(_ task: CalendarTask) -> String { "/api/v1/calendar/tasks/\(task.id)" }
 
     /// Moves open tasks. `ids` is the new order of the open tasks only, as the web sends it; done
     /// tasks keep their positions and stay listed after the open ones.
@@ -158,6 +198,14 @@ final class TasksService: ObservableObject {
 
     func deleteAttachment(_ attachment: TaskAttachment, from task: CalendarTask) async throws {
         try await client.deleteTaskAttachment(taskID: task.id, attachmentID: attachment.id)
+    }
+
+    /// The attachments of the task with `taskID`, for `AttachmentsSection`.
+    func attachmentOwner(taskID: String) -> AttachmentOwner {
+        AttachmentOwner(id: "task-\(taskID)",
+                        load: { try await self.client.taskAttachments(taskID: taskID) },
+                        add: { try await self.client.addTaskAttachment(taskID: taskID, $0) },
+                        delete: { try await self.client.deleteTaskAttachment(taskID: taskID, attachmentID: $0.id) })
     }
 
     // MARK: - Helpers

@@ -30,6 +30,7 @@ struct EventEditorView: View {
     @State private var isSaving = false
     @State private var error: String?
     @State private var confirmingDelete = false
+    @State private var conflict: EditConflict?
 
     init(mode: Mode, onSaved: @escaping (CalendarEvent?) -> Void = { _ in }) {
         self.mode = mode
@@ -136,6 +137,9 @@ struct EventEditorView: View {
                     Text("This deletes every occurrence of the event.")
                 }
             }
+            .editConflictAlert($conflict,
+                               overwrite: { Task { await save(overwrite: true) } },
+                               discard: { Task { await discard() } })
         }
     }
 
@@ -167,7 +171,7 @@ struct EventEditorView: View {
         }
     }
 
-    private func save() async {
+    private func save(overwrite: Bool = false) async {
         if let problem = draft.problem {
             error = problem
             return
@@ -178,15 +182,29 @@ struct EventEditorView: View {
         do {
             let saved: CalendarEvent
             if let existing {
-                saved = try await events.update(existing, from: original, to: draft)
+                saved = try await events.update(existing, from: original, to: draft, overwrite: overwrite)
             } else {
                 saved = try await events.create(draft)
             }
             onSaved(saved)
             dismiss()
+        } catch let conflict as EditConflict {
+            self.conflict = conflict
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Drops this edit for the change made elsewhere, and shows that; nil closes the event's
+    /// screen when it was deleted.
+    private func discard() async {
+        guard let existing else { return dismiss() }
+        let current = try? await events.event(id: existing.id)
+        // Updated in place, not thrown away: a calendar emptied here would have to reload, and
+        // might not be able to.
+        await events.pullChanges()
+        onSaved(current)
+        dismiss()
     }
 
     private func delete() async {
