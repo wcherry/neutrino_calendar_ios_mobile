@@ -17,13 +17,8 @@ struct EventDetailView: View {
     }
 
     @State private var customReminder: ReminderEditorView.Mode?
+    @StateObject private var attachmentsPresenter = AttachmentsPresenter()
 
-    @State private var attachments: [EventAttachment] = []
-    @State private var attachmentsState: LoadState = .loading
-
-    private enum LoadState: Equatable {
-        case loading, loaded, failed(String)
-    }
 
     private var event: CalendarEvent { occurrence.event }
 
@@ -85,12 +80,12 @@ struct EventDetailView: View {
 
             remindersSection
 
-            attachmentsSection
+            AttachmentsSection(owner: events.attachmentOwner(event), presenter: attachmentsPresenter)
         }
         .densityList()
+        .attachmentPresentations(attachmentsPresenter)
         .navigationTitle("Event")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: event.id) { await loadAttachments() }
         .task { if !reminders.hasLoaded { await reminders.reload() } }
         .sheet(item: $customReminder) { ReminderEditorView(mode: $0) }
         .sheet(item: $editing) { mode in
@@ -169,47 +164,6 @@ struct EventDetailView: View {
             try await reminders.create(title: event.title, due: dueTime(for: preset), rule: nil, eventID: event.id)
         } catch {
             reminders.error = error.localizedDescription
-        }
-    }
-
-    @ViewBuilder
-    private var attachmentsSection: some View {
-        switch attachmentsState {
-        case .loading:
-            Section("Attachments") {
-                ProgressView()
-            }
-        case .failed(let message):
-            Section("Attachments") {
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
-                    .foregroundStyle(.orange)
-            }
-        case .loaded where attachments.isEmpty:
-            EmptyView()
-        case .loaded:
-            Section("Attachments") {
-                // Listed, not opened: previewing a Drive file means decrypting it on the device,
-                // which is Epic 14.
-                ForEach(attachments) { attachment in
-                    if let note = attachment.note, attachment.fileId == nil {
-                        Label(note, systemImage: "note.text")
-                            .textSelection(.enabled)
-                    } else {
-                        Label(attachment.name ?? "Drive file", systemImage: "doc")
-                    }
-                }
-            }
-        }
-    }
-
-    private func loadAttachments() async {
-        attachmentsState = .loading
-        do {
-            attachments = try await events.attachments(for: event)
-            attachmentsState = .loaded
-        } catch {
-            attachmentsState = .failed(error.localizedDescription)
         }
     }
 }

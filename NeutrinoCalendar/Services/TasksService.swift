@@ -200,6 +200,14 @@ final class TasksService: ObservableObject {
         try await client.deleteTaskAttachment(taskID: task.id, attachmentID: attachment.id)
     }
 
+    /// The attachments of the task with `taskID`, for `AttachmentsSection`.
+    func attachmentOwner(taskID: String) -> AttachmentOwner {
+        AttachmentOwner(id: "task-\(taskID)",
+                        load: { try await self.client.taskAttachments(taskID: taskID) },
+                        add: { try await self.client.addTaskAttachment(taskID: taskID, $0) },
+                        delete: { try await self.client.deleteTaskAttachment(taskID: taskID, attachmentID: $0.id) })
+    }
+
     // MARK: - Helpers
 
     private func refresh(_ task: CalendarTask) async {

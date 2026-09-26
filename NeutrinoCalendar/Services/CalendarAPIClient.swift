@@ -100,6 +100,15 @@ final class CalendarAPIClient {
         return response.attachments
     }
 
+    func addEventAttachment(eventID: String, _ request: CreateAttachmentRequest) async throws -> Attachment {
+        try decode(try await send("POST", "/api/v1/calendar/events/\(eventID)/attachments", body: request),
+                   path: "events/{id}/attachments")
+    }
+
+    func deleteEventAttachment(eventID: String, attachmentID: String) async throws {
+        _ = try await send("DELETE", "/api/v1/calendar/events/\(eventID)/attachments/\(attachmentID)")
+    }
+
     /// Every reminder the user has, linked or not. The server can filter by `eventId` or `taskId`,
     /// but one list is what the Reminders tab and the event screens both draw from.
     func reminders() async throws -> [Reminder] {
@@ -205,13 +214,69 @@ final class CalendarAPIClient {
     }
 
     func addTaskNote(taskID: String, note: String) async throws -> TaskAttachment {
-        try decode(try await send("POST", "/api/v1/calendar/tasks/\(taskID)/attachments",
-                                  body: CreateTaskAttachmentRequest(note: note)),
+        try await addTaskAttachment(taskID: taskID, .note(note))
+    }
+
+    func addTaskAttachment(taskID: String, _ request: CreateAttachmentRequest) async throws -> Attachment {
+        try decode(try await send("POST", "/api/v1/calendar/tasks/\(taskID)/attachments", body: request),
                    path: "tasks/{id}/attachments")
     }
 
     func deleteTaskAttachment(taskID: String, attachmentID: String) async throws {
         _ = try await send("DELETE", "/api/v1/calendar/tasks/\(taskID)/attachments/\(attachmentID)")
+    }
+
+    // MARK: - Drive
+
+    /// A folder's subfolders and files. The root's id is the user's id.
+    func driveFolder(id: String) async throws -> DriveFolderContents {
+        try await get("/api/v1/drive/folders/\(id)")
+    }
+
+    func createDriveFolder(name: String, parentID: String? = nil) async throws -> DriveFolder {
+        try decode(try await send("POST", "/api/v1/drive/folders",
+                                  body: CreateFolderRequest(name: name, parentId: parentID)),
+                   path: "drive/folders")
+    }
+
+    func driveFileMetadata(id: String) async throws -> DriveFile {
+        try await get("/api/v1/drive/files/\(id)/metadata")
+    }
+
+    /// The file's stored bytes: ciphertext for an encrypted file.
+    func driveFileContent(id: String) async throws -> Data {
+        try await send("GET", "/api/v1/drive/files/\(id)")
+    }
+
+    /// The file's sealed DEK, or nil when none is stored for this user (a plaintext file).
+    func driveFileKey(id: String) async throws -> DriveFileKey? {
+        do {
+            return try await get("/api/v1/drive/files/\(id)/key")
+        } catch let error as CalendarAPIError where error.isNotFound {
+            return nil
+        }
+    }
+
+    func setDriveFileKey(id: String, _ key: DriveFileKey) async throws {
+        _ = try await send("PUT", "/api/v1/drive/files/\(id)/key", body: key)
+    }
+
+    /// Posts an already-encrypted file. Part order matters: the server stops reading at the file
+    /// part, so every field goes before it.
+    func uploadDriveFile(ciphertext: Data, name: String, mimeType: String, folderID: String?,
+                         encryptedMetadata: String) async throws -> DriveFile {
+        var form = MultipartFormBody()
+        form.appendField(name: "encrypted_metadata", value: encryptedMetadata)
+        form.appendField(name: "folder_id", value: folderID)
+        form.appendFile(name: "file", fileName: name, mimeType: mimeType, data: ciphertext)
+        return try decode(try await send("POST", "/api/v1/drive/files/upload",
+                                         bodyData: form.finalized(), contentType: form.contentType),
+                          path: "drive/files/upload")
+    }
+
+    /// Moves a file to the Drive trash.
+    func trashDriveFile(id: String) async throws {
+        _ = try await send("DELETE", "/api/v1/drive/files/\(id)")
     }
 
     // MARK: - Transport
@@ -235,7 +300,7 @@ final class CalendarAPIClient {
     }
 
     private func send(_ method: String, _ path: String, query: [URLQueryItem] = [],
-                      bodyData: Data?) async throws -> Data {
+                      bodyData: Data?, contentType: String = "application/json") async throws -> Data {
         guard var components = URLComponents(string: baseURL() + path) else {
             throw CalendarAPIError.serverError(statusCode: 0)
         }
@@ -251,7 +316,7 @@ final class CalendarAPIClient {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(Self.clientID, forHTTPHeaderField: Self.clientIDHeader)
         if let bodyData {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
             request.httpBody = bodyData
         }
 

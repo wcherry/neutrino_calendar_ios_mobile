@@ -221,21 +221,3 @@ struct ScheduleTaskRequest: Encodable, Equatable {
         self.allDay = allDay
     }
 }
-
-// MARK: - Attachments
-
-/// One row of `GET /api/v1/calendar/tasks/{id}/attachments`: a Drive file or an inline note.
-struct TaskAttachment: Decodable, Identifiable, Hashable {
-    let id: String
-    let fileId: String?
-    let name: String?
-    let note: String?
-}
-
-struct ListTaskAttachmentsResponse: Decodable {
-    let attachments: [TaskAttachment]
-}
-
-struct CreateTaskAttachmentRequest: Encodable, Equatable {
-    let note: String
-}

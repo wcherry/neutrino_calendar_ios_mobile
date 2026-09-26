@@ -113,21 +113,6 @@ enum EventSource: Hashable {
     }
 }
 
-// MARK: - EventAttachment
-
-/// One row of `GET /api/v1/calendar/events/{id}/attachments`: either a Drive file or an inline
-/// text note, never both.
-struct EventAttachment: Decodable, Identifiable, Hashable {
-    let id: String
-    let fileId: String?
-    let name: String?
-    let note: String?
-}
-
-struct ListAttachmentsResponse: Decodable {
-    let attachments: [EventAttachment]
-}
-
 // MARK: - ServerDate
 
 /// The server writes `%Y-%m-%dT%H:%M:%SZ`; the web writes back `toISOString()`, which adds

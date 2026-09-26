@@ -137,6 +137,8 @@ final class MockURLProtocol: URLProtocol {
     /// The body of the last request. URLSession hands a protocol its body as a stream, not as
     /// `httpBody`, so it is read out here.
     nonisolated(unsafe) static var lastBody: Data?
+    /// Every request's body, in order.
+    nonisolated(unsafe) static var bodies: [Data?] = []
     nonisolated(unsafe) private static var status = 200
     nonisolated(unsafe) private static var body = Data()
 
@@ -145,6 +147,7 @@ final class MockURLProtocol: URLProtocol {
         requests = []
         queue = []
         lastBody = nil
+        bodies = []
         status = 200
         body = Data()
     }
@@ -161,6 +164,11 @@ final class MockURLProtocol: URLProtocol {
 
     /// The status that makes a request fail as it does offline.
     static let offline = -1
+
+    /// `respondInSequence` with raw bodies, for binary answers such as ciphertext.
+    static func respondInSequenceData(_ answers: [(Int, Data)]) {
+        queue = answers.map { (status: $0.0, body: $0.1) }
+    }
 
     static func respond(status: Int, body: String) {
         self.status = status
@@ -185,6 +193,7 @@ final class MockURLProtocol: URLProtocol {
             return data
         }
         Self.requests.append(request)
+        Self.bodies.append(Self.lastBody)
         let answer = Self.queue.isEmpty ? (status: Self.status, body: Self.body) : Self.queue.removeFirst()
         // A status of -1 is no answer at all: the device is offline.
         if answer.status == Self.offline {
