@@ -49,6 +49,9 @@ final class EventsService: ObservableObject {
     var pending: PendingWrites?
     /// The day weeks start on. Set from Settings; every grid reads it through `calendar`.
     @Published private(set) var weekStart: WeekStart
+    /// The sources a Focus filter shows; everything when no Focus has set one. Applied to what
+    /// every view reads, not to what is loaded, so ending the Focus needs no reload.
+    @Published private(set) var sourceFilter: SourceFilter
     private let baseCalendar: Calendar
     private let now: () -> Date
 
@@ -56,10 +59,11 @@ final class EventsService: ObservableObject {
                                 category: "EventsService")
 
     init(client: CalendarAPIClient, calendar: Calendar = .current, weekStart: WeekStart = .stored,
-         now: @escaping () -> Date = Date.init) {
+         sourceFilter: SourceFilter = .load(), now: @escaping () -> Date = Date.init) {
         self.client = client
         self.baseCalendar = calendar
         self.weekStart = weekStart
+        self.sourceFilter = sourceFilter
         self.now = now
         self.focus = calendar.startOfDay(for: now())
     }
@@ -77,6 +81,11 @@ final class EventsService: ObservableObject {
         self.weekStart = weekStart
     }
 
+    func setSourceFilter(_ filter: SourceFilter) {
+        guard filter != sourceFilter else { return }
+        sourceFilter = filter
+    }
+
     var today: Date { calendar.startOfDay(for: now()) }
 
     /// The first of the focused month.
@@ -88,16 +97,20 @@ final class EventsService: ObservableObject {
 
     /// The agenda: the focused month's days that have occurrences.
     var sections: [DaySection] {
-        Self.layout(byMonth[month] ?? [], in: month, calendar: calendar)
+        Self.layout(shown(byMonth[month] ?? []), in: month, calendar: calendar)
     }
 
     /// Everything on `day`, all-day first, then by start, then by title. Empty until the day's
     /// month has loaded.
     func occurrences(on day: Date) -> [EventOccurrence] {
         let month = Self.firstOfMonth(day, calendar: calendar)
-        return (byMonth[month] ?? [])
+        return shown(byMonth[month] ?? [])
             .filter { EventDayRange($0, calendar: calendar).contains(day: day, calendar: calendar) }
             .sorted(by: Self.dayOrder)
+    }
+
+    private func shown(_ occurrences: [EventOccurrence]) -> [EventOccurrence] {
+        sourceFilter.isActive ? occurrences.filter { sourceFilter.shows($0.event.source) } : occurrences
     }
 
     /// The days `mode` shows around the focus, which decides what has to be loaded.
@@ -336,6 +349,19 @@ final class EventsService: ObservableObject {
             pending?.enqueue(PendingWrite(method: "DELETE", path: "/api/v1/calendar/events/\(event.id)"))
             apply(changed: [], deleted: [event.id])
         }
+    }
+
+    /// Every occurrence not over yet from now through the end of `days` days' time, soonest
+    /// first, whatever the Focus filter: for Siri and Spotlight, which answer without the
+    /// calendar on screen and so ask the server rather than the months loaded. Starts from the
+    /// start of today, so an event under way is still found.
+    func upcoming(days: Int) async throws -> [EventOccurrence] {
+        let now = now()
+        let from = calendar.startOfDay(for: now)
+        let to = calendar.date(byAdding: .day, value: days, to: from)!
+        let events = try await client.events(from: from, to: to)
+        let expanded = RecurrenceExpander.expand(events, from: from, to: to, calendar: calendar)
+        return UpNext.upcoming(expanded, now: now, calendar: calendar)
     }
 
     /// The event as the server has it now.

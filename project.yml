@@ -58,6 +58,11 @@ targets:
       properties:
         CFBundleName: Calendar
         CFBundleDisplayName: Calendar
+        # "Calendar" is Apple's app's name too, so Siri also answers to these in the App Shortcut
+        # phrases ("What's next in Neutrino"); see Intents/CalendarIntents.swift.
+        INAlternativeAppNames:
+          - INAlternativeAppName: Neutrino Calendar
+          - INAlternativeAppName: Neutrino
         # Without these, xcodegen writes literal "1.0"/"1" into Info.plist and the
         # MARKETING_VERSION / CURRENT_PROJECT_VERSION build settings are ignored.
         CFBundleShortVersionString: "$(MARKETING_VERSION)"

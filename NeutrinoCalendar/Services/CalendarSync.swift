@@ -156,6 +156,7 @@ final class CalendarSignalsClient {
 ///   tasks, which are small whole lists.
 /// * Coming back to the foreground, reconnecting, and getting back online all do the same, after
 ///   sending whatever writes were queued offline (`PendingWrites`).
+/// * Either way, and after an edit made here, the Spotlight index is replaced.
 @MainActor
 final class CalendarSync: ObservableObject {
 
@@ -165,6 +166,7 @@ final class CalendarSync: ObservableObject {
     private let events: EventsService
     private let reminders: RemindersService
     private let tasks: TasksService
+    private let spotlight: SpotlightIndexer?
     private var cancellables: Set<AnyCancellable> = []
     private var wasOnline = true
     private var isStarted = false
@@ -173,18 +175,26 @@ final class CalendarSync: ObservableObject {
                                 category: "CalendarSync")
 
     init(client: CalendarAPIClient, signals: CalendarSignalsClient, pending: PendingWrites,
-         events: EventsService, reminders: RemindersService, tasks: TasksService) {
+         events: EventsService, reminders: RemindersService, tasks: TasksService,
+         spotlight: SpotlightIndexer? = nil) {
         self.client = client
         self.signals = signals
         self.pending = pending
         self.events = events
         self.reminders = reminders
         self.tasks = tasks
+        self.spotlight = spotlight
         events.pending = pending
         reminders.pending = pending
         tasks.pending = pending
         signals.onRemoteChange = { [weak self] in Task { await self?.refresh() } }
         signals.onReconnect = { [weak self] in Task { await self?.catchUp() } }
+        // An edit made here: the server doesn't signal a client its own writes, and each one
+        // throws the loaded months away.
+        events.$generation
+            .dropFirst()
+            .sink { [weak self] _ in Task { await self?.spotlight?.reindex() } }
+            .store(in: &cancellables)
     }
 
     /// Replays queued writes whenever the network comes back.
@@ -238,5 +248,6 @@ final class CalendarSync: ObservableObject {
         await events.pullChanges()
         await reminders.reload()
         if tasks.hasLoaded { await tasks.reload() }
+        await spotlight?.reindex()
     }
 }

@@ -13,7 +13,12 @@ struct ContentView: View {
         TabView(selection: $router.tab) {
             NavigationStack {
                 CalendarHomeView()
-                    .safeAreaInset(edge: .bottom, spacing: 0) { PendingWritesBanner() }
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        VStack(spacing: 0) {
+                            FocusFilterBanner()
+                            PendingWritesBanner()
+                        }
+                    }
             }
             .tabItem { Label("Calendar", systemImage: "calendar") }
             .tag(Tab.calendar)
