@@ -161,8 +161,7 @@ Features
   differs ("2:00 PM – 3:00 PM Eastern Time")
 * ✅ All-day events, as dates rather than instants, on every day they cover (`EventDayRange`)
 * ✅ Events from connected providers, badged by `source` (Google, Outlook, iCloud)
-* ✅ Event detail: time, location, notes, guests, attachments (listed; opening a Drive file is
-  Epic 14)
+* ✅ Event detail: time, location, notes, guests, attachments (opened and added since Epic 14)
 * ✅ A month agenda (the web's Agenda view) that opens at today; Month/Week/Day grids are Epic 5
 
 Parity is enforced, not hoped for: `scripts/generate_recurrence_vectors.mjs` runs the web's
