@@ -12,6 +12,8 @@ struct SettingsView: View {
     @EnvironmentObject var keyProvisioning: KeyProvisioningService
     @State private var encryptionFlow: EncryptionFlow?
     @State private var encryptionRevision = 0
+    @EnvironmentObject var events: EventsService
+    @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.default.rawValue
 
     var body: some View {
         List {
@@ -37,6 +39,19 @@ struct SettingsView: View {
                 Task { await notifications.apply(remindersService.reminders) }
             }
             .task { await notifications.refreshAuthorization() }
+
+            Section {
+                Picker("Week starts on", selection: $weekStart) {
+                    ForEach(WeekStart.allCases) { Text($0.label).tag($0.rawValue) }
+                }
+            } header: {
+                Text("Calendar")
+            } footer: {
+                Text("Used by the month, week and year views and every date picker, as on the web.")
+            }
+            .onChange(of: weekStart) { raw in
+                events.setWeekStart(WeekStart(rawValue: raw) ?? .default)
+            }
 
             Section {
                 Toggle("Compact layout", isOn: $compactLayout)

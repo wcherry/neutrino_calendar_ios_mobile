@@ -72,30 +72,42 @@ struct CalendarHomeView: View {
         return "\(first.formatted(.dateTime.month(.abbreviated).day())) – \(end)"
     }
 
+    /// Today on the left; the arrows either side of the title, which opens the date picker; new
+    /// event and the view menu on the right. Five controls across the leading and trailing
+    /// groups left the title no room, so the arrows travel with it.
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .navigationBarLeading) {
-            Button { events.move(mode, by: -1) } label: {
-                Label("Previous", systemImage: "chevron.left")
-            }
-            Button { events.move(mode, by: 1) } label: {
-                Label("Next", systemImage: "chevron.right")
-            }
-        }
-        ToolbarItem(placement: .principal) {
-            // The title is the way to any date, as the month name is in the iPhone's Calendar.
-            Button { jumping = true } label: {
-                HStack(spacing: 4) {
-                    Text(title).font(.headline)
-                    Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
-                }
-                .foregroundStyle(.primary)
-            }
-            .accessibilityLabel("\(title), choose a date")
-        }
-        ToolbarItemGroup(placement: .navigationBarTrailing) {
+        ToolbarItem(placement: .navigationBarLeading) {
             Button("Today") { events.goToToday() }
                 .disabled(events.isShowingToday(mode))
+        }
+        ToolbarItem(placement: .principal) {
+            HStack(spacing: 0) {
+                Button { events.move(mode, by: -1) } label: {
+                    Label("Previous", systemImage: "chevron.left")
+                        .labelStyle(.iconOnly)
+                        .padding(.horizontal, 4)
+                }
+                // The title is the way to any date, as the month name is in the iPhone's Calendar.
+                Button { jumping = true } label: {
+                    HStack(spacing: 4) {
+                        Text(title)
+                            .font(.headline)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(.primary)
+                }
+                .accessibilityLabel("\(title), choose a date")
+                Button { events.move(mode, by: 1) } label: {
+                    Label("Next", systemImage: "chevron.right")
+                        .labelStyle(.iconOnly)
+                        .padding(.horizontal, 4)
+                }
+            }
+        }
+        ToolbarItemGroup(placement: .navigationBarTrailing) {
             // A new event starts on the day in view: the selected day in month view, the day in
             // day view, the focused day otherwise.
             Button { creating = .create(day: events.focus) } label: {

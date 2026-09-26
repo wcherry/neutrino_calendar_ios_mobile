@@ -47,20 +47,35 @@ final class EventsService: ObservableObject {
     private let client: CalendarAPIClient
     /// Where an edit or delete goes when the server can't be reached. Without one, it fails.
     var pending: PendingWrites?
-    let calendar: Calendar
+    /// The day weeks start on. Set from Settings; every grid reads it through `calendar`.
+    @Published private(set) var weekStart: WeekStart
+    private let baseCalendar: Calendar
     private let now: () -> Date
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NeutrinoCalendar",
                                 category: "EventsService")
 
-    init(client: CalendarAPIClient, calendar: Calendar = .current, now: @escaping () -> Date = Date.init) {
+    init(client: CalendarAPIClient, calendar: Calendar = .current, weekStart: WeekStart = .stored,
+         now: @escaping () -> Date = Date.init) {
         self.client = client
-        self.calendar = calendar
+        self.baseCalendar = calendar
+        self.weekStart = weekStart
         self.now = now
         self.focus = calendar.startOfDay(for: now())
     }
 
     // MARK: - Queries
+
+    /// The device's calendar with the chosen first weekday, rather than the region's.
+    var calendar: Calendar {
+        var calendar = baseCalendar
+        calendar.firstWeekday = weekStart.firstWeekday
+        return calendar
+    }
+
+    func setWeekStart(_ weekStart: WeekStart) {
+        self.weekStart = weekStart
+    }
 
     var today: Date { calendar.startOfDay(for: now()) }
 

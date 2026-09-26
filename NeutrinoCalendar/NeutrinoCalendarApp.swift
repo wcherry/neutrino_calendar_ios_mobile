@@ -114,6 +114,8 @@ private struct RootContentView: View {
         Group {
             if authService.isAuthenticated {
                 ContentView()
+                    // Every date picker, sheets included, starts its weeks where the grids do.
+                    .environment(\.calendar, eventsService.calendar)
             } else {
                 LoginView()
             }
