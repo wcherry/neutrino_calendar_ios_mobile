@@ -13,6 +13,10 @@ struct NeutrinoCalendarApp: App {
     @StateObject private var eventsService: EventsService
     @StateObject private var remindersService: RemindersService
     @StateObject private var tasksService: TasksService
+    @StateObject private var notifications: ReminderNotifications
+    @StateObject private var router: AppRouter
+
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         // Before anything else. Everything the shared package writes is namespaced `ncal.*`.
@@ -24,8 +28,21 @@ struct NeutrinoCalendarApp: App {
         _networkMonitor = StateObject(wrappedValue: NetworkMonitor())
         let client = CalendarAPIClient(authService: authService)
         _eventsService = StateObject(wrappedValue: EventsService(client: client))
-        _remindersService = StateObject(wrappedValue: RemindersService(client: client))
         _tasksService = StateObject(wrappedValue: TasksService(client: client))
+
+        // Reminder notifications and their actions. Both registrations have to happen during
+        // launch: a notification action can be what launched the app, and iOS only runs a
+        // background task registered before launch finishes.
+        let reminders = RemindersService(client: client)
+        _remindersService = StateObject(wrappedValue: reminders)
+        let router = AppRouter()
+        _router = StateObject(wrappedValue: router)
+        let notifications = ReminderNotifications()
+        notifications.reminders = reminders
+        notifications.onOpen = { [weak router] id in router?.open(reminderID: id) }
+        notifications.configure()
+        _notifications = StateObject(wrappedValue: notifications)
+        BackgroundRefresh.register(auth: authService, reminders: reminders, notifications: notifications)
     }
 
     var body: some Scene {
@@ -36,6 +53,19 @@ struct NeutrinoCalendarApp: App {
                 .environmentObject(eventsService)
                 .environmentObject(remindersService)
                 .environmentObject(tasksService)
+                .environmentObject(notifications)
+                .environmentObject(router)
+        }
+        .onChange(of: scenePhase) { phase in
+            switch phase {
+            case .active:
+                // Catches changes made elsewhere while the app was away; the reload re-plans.
+                if authService.isAuthenticated { Task { await remindersService.reload() } }
+            case .background:
+                BackgroundRefresh.schedule()
+            default:
+                break
+            }
         }
     }
 }
@@ -48,6 +78,7 @@ private struct RootContentView: View {
     @EnvironmentObject var eventsService: EventsService
     @EnvironmentObject var remindersService: RemindersService
     @EnvironmentObject var tasksService: TasksService
+    @EnvironmentObject var notifications: ReminderNotifications
 
     var body: some View {
         Group {
@@ -60,13 +91,27 @@ private struct RootContentView: View {
         .task {
             if authService.isAuthenticated {
                 await authService.refreshTokenIfNeeded()
+                // Loaded at launch, not only when the Reminders tab opens: the notifications are
+                // planned from this list.
+                await remindersService.reload()
             }
+        }
+        // Every change to the list re-plans the notifications. Only once the list has loaded:
+        // an empty list before the first load would otherwise unschedule every alert, and a
+        // launch with no network would leave the phone with none.
+        .onReceive(remindersService.$reminders) { reminders in
+            guard authService.isAuthenticated, remindersService.hasLoaded else { return }
+            Task { await notifications.apply(reminders) }
         }
         .onChange(of: authService.isAuthenticated) { isAuthenticated in
             if !isAuthenticated {
                 eventsService.reset()
                 remindersService.reset()
                 tasksService.reset()
+                // The next account must not be reminded of this one's reminders.
+                Task { await notifications.removeAll() }
+            } else {
+                Task { await remindersService.reload() }
             }
         }
     }

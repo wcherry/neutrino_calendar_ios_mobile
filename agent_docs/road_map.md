@@ -302,16 +302,24 @@ the user rather than resolved silently.
 
 ⸻
 
-### ⬜ Epic 11 — Alerts & Notifications
+### ✅ Epic 11 — Alerts & Notifications
 
-* ⬜ Per-event alerts (at time, 5/10/15/30 min, 1 h, 1 day before, custom)
-* ⬜ Local notifications scheduled from synced reminders and alerts, re-planned after each sync.
-  iOS limits an app to 64 pending notifications, so schedule the nearest ones first
-* ⬜ Notification actions: Snooze, Mark done, Open
-* ⬜ Stamp completion back to the server (`PATCH /reminders/{id}`)
+* ✅ Per-event alerts: an event's alert is a reminder linked to it (the presets from "At time of
+  event" to "1 week before", Epic 12), so it alerts like any other reminder
+* ✅ Local notifications scheduled from synced reminders, re-planned whenever the list changes,
+  when the app comes forward, and from background refresh (`BGAppRefreshTask`, about every half
+  hour, as iOS allows). The nearest 60 are scheduled, under iOS's 64, and the rest follow as
+  those fire. A moved reminder replaces its notification. Nothing is re-planned from a list that
+  hasn't loaded, so a launch with no network keeps the alerts already scheduled
+* ✅ Notification actions: Mark as Done, Snooze 10 Minutes (this device only), and tapping opens
+  the reminder in the Reminders tab
+* ✅ Mark as Done completes the reminder on the server (`PATCH /reminders/{id}` with the device's
+  zone), which moves a repeating one to its next time
+* ✅ Settings › Notifications: a Reminder alerts switch, and a way to Settings if notifications
+  were refused. Permission is asked the first time there is a reminder to alert about
 * ⬜ **Backend (later):** real delivery in `reminder_engine` (APNs device-token registration +
-  push), so alerts fire on a device that hasn't synced recently. This is a platform-wide epic,
-  because no Neutrino app has push today
+  push), so alerts fire on a device that hasn't synced since the reminder was set. This is a
+  platform-wide epic, because no Neutrino app has push today
 
 Milestone
 

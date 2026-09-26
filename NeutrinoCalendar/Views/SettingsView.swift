@@ -4,6 +4,9 @@ import NeutrinoAuth
 
 struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var notifications: ReminderNotifications
+    @EnvironmentObject var remindersService: RemindersService
+    @AppStorage(ReminderNotifications.enabledKey) private var alertsEnabled = true
     @AppStorage(LayoutDensity.storageKey) private var compactLayout = false
 
     var body: some View {
@@ -11,6 +14,25 @@ struct SettingsView: View {
             Section("Account") {
                 LabeledContent("Server", value: NeutrinoStorage.serverHost)
             }
+
+            Section {
+                Toggle("Reminder alerts", isOn: $alertsEnabled)
+                if alertsEnabled && notifications.authorization == .denied {
+                    Button("Allow Notifications in Settings") {
+                        if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                }
+            } header: {
+                Text("Notifications")
+            } footer: {
+                Text(notificationsFooter)
+            }
+            .onChange(of: alertsEnabled) { _ in
+                Task { await notifications.apply(remindersService.reminders) }
+            }
+            .task { await notifications.refreshAuthorization() }
 
             Section {
                 Toggle("Compact layout", isOn: $compactLayout)
@@ -42,5 +64,19 @@ struct SettingsView: View {
         }
         .densityList()
         .navigationTitle("Settings")
+    }
+
+    private var notificationsFooter: String {
+        if !alertsEnabled { return "No reminder will alert on this device." }
+        switch notifications.authorization {
+        case .denied:
+            return "Notifications are off for Calendar, so reminders can't alert. Turn them on in Settings."
+        case .notDetermined:
+            return "You'll be asked the first time a reminder is coming up."
+        default:
+            return "Reminders alert on this device at their due time, with Mark as Done and Snooze. "
+                + "They are scheduled from what was last synced, so a reminder added elsewhere alerts "
+                + "once this device has caught up."
+        }
     }
 }

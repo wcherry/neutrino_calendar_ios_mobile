@@ -3,14 +3,14 @@ import NeutrinoAuth
 
 /// The tab shell from Epic 1. Each tab is an empty state that names the epic that fills it.
 struct ContentView: View {
-    @State private var selectedTab = Tab.calendar
+    @EnvironmentObject var router: AppRouter
 
     enum Tab: Hashable {
         case calendar, reminders, tasks, settings
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: $router.tab) {
             NavigationStack {
                 CalendarHomeView()
             }
@@ -48,4 +48,6 @@ struct ContentView: View {
         .environmentObject(EventsService(client: CalendarAPIClient(token: { nil })))
         .environmentObject(RemindersService(client: CalendarAPIClient(token: { nil })))
         .environmentObject(TasksService(client: CalendarAPIClient(token: { nil })))
+        .environmentObject(ReminderNotifications())
+        .environmentObject(AppRouter())
 }

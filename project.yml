@@ -72,6 +72,12 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        # Background refresh re-syncs reminders so their notifications are planned before they
+        # are due; see BackgroundRefresh.swift.
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.neutrino.calendar.refresh
 
   NeutrinoCalendarTests:
     type: bundle.unit-test

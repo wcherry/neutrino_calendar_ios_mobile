@@ -70,8 +70,11 @@ final class RemindersService: ObservableObject {
         error = nil
         defer { isLoading = false }
         do {
-            reminders = try await client.reminders()
+            let loaded = try await client.reminders()
+            // Loaded before the list is published: whatever reacts to the list (the notification
+            // plan) checks this, and would otherwise see the first load as not loaded yet.
             hasLoaded = true
+            reminders = loaded
         } catch {
             logger.error("reload failed: \(error, privacy: .public)")
             self.error = error.localizedDescription
