@@ -8,9 +8,12 @@ import SwiftUI
 /// costs no requests.
 struct CalendarHomeView: View {
     @EnvironmentObject var events: EventsService
+    @EnvironmentObject var router: AppRouter
     @AppStorage(CalendarMode.storageKey) private var mode: CalendarMode = .month
     @State private var jumping = false
     @State private var creating: EventEditorView.Mode?
+    /// An event opened from Spotlight or a Shortcut rather than tapped in a view.
+    @State private var opened: EventOccurrence?
 
     var body: some View {
         content
@@ -25,6 +28,28 @@ struct CalendarHomeView: View {
             .task(id: LoadKey(mode: mode, focus: events.focus, generation: events.generation)) {
                 await events.ensureLoaded(for: mode)
             }
+            .navigationDestination(isPresented: Binding(get: { opened != nil },
+                                                        set: { if !$0 { opened = nil } })) {
+                if let opened { EventDetailView(occurrence: opened) }
+            }
+            .task { await openRequested() }
+            .onChange(of: router.openEvent) { _ in Task { await openRequested() } }
+    }
+
+    /// Opens the event a Spotlight result or a Shortcut asked for, on the day it falls on. It is
+    /// read from the server, so what opens is the event as it is now.
+    private func openRequested() async {
+        guard let link = router.openEvent else { return }
+        router.openEvent = nil
+        do {
+            let occurrence = link.occurrence(of: try await events.event(id: link.eventID))
+            events.select(EventDayRange(occurrence, calendar: events.calendar).first)
+            opened = occurrence
+        } catch let error as CalendarAPIError where error.isNotFound {
+            events.error = "That event has been deleted."
+        } catch {
+            events.error = error.localizedDescription
+        }
     }
 
     private struct LoadKey: Hashable {

@@ -68,6 +68,18 @@ struct EventDraft: Equatable {
         self.timeZone = calendar.timeZone
     }
 
+    /// A new event from Siri or Shortcuts, which give a start and perhaps an end: an hour long
+    /// when no end is given, or the one day for an all-day event.
+    init(title: String, start: Date, end: Date?, allDay: Bool, location: String?,
+         calendar: Calendar = .current) {
+        self.title = title
+        self.location = location ?? ""
+        self.allDay = allDay
+        self.start = start
+        self.end = end ?? (allDay ? start : start.addingTimeInterval(Self.defaultLength))
+        self.timeZone = calendar.timeZone
+    }
+
     /// The form for editing `event`: the whole series for a repeating one, so its own start is
     /// shown, not the tapped occurrence's. Saving an occurrence's date as the start would move
     /// the series there and drop every occurrence before it.

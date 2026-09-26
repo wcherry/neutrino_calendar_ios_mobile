@@ -51,3 +51,23 @@ struct PendingWritesBanner: View {
         }
     }
 }
+
+// MARK: - FocusFilterBanner
+
+/// Says that a Focus is hiding some of the calendar, so a missing event doesn't read as a lost
+/// one.
+struct FocusFilterBanner: View {
+    @EnvironmentObject var events: EventsService
+
+    var body: some View {
+        if let summary = events.sourceFilter.summary {
+            Label("Focus: showing \(summary) only", systemImage: "moon.fill")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+                .background(.bar)
+                .accessibilityIdentifier("focusFilterBanner")
+        }
+    }
+}

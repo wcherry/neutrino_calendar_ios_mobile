@@ -1,3 +1,4 @@
+import CoreSpotlight
 import SwiftUI
 import NeutrinoCore
 import NeutrinoAuth
@@ -23,48 +24,25 @@ struct NeutrinoCalendarApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        // Before anything else. Everything the shared package writes is namespaced `ncal.*`.
-        NeutrinoApp.configure(.calendar)
+        // The services are shared with the App Intents, which can run with no scene; see
+        // AppServices. Making them configures the `ncal.*` namespace, so it comes first.
+        let services = AppServices.shared
         NeutrinoBrand.use(.calendar)
 
-        let authService = AuthService()
-        _authService = StateObject(wrappedValue: authService)
-        let networkMonitor = NetworkMonitor()
-        _networkMonitor = StateObject(wrappedValue: networkMonitor)
-        let client = CalendarAPIClient(authService: authService)
-        let events = EventsService(client: client)
-        _eventsService = StateObject(wrappedValue: events)
-        let tasks = TasksService(client: client)
-        _tasksService = StateObject(wrappedValue: tasks)
-        _attachmentFiles = StateObject(wrappedValue: AttachmentFiles(client: client))
-        _keyProvisioning = StateObject(wrappedValue: KeyProvisioningService(authService: authService))
+        _authService = StateObject(wrappedValue: services.auth)
+        _networkMonitor = StateObject(wrappedValue: services.network)
+        _eventsService = StateObject(wrappedValue: services.events)
+        _remindersService = StateObject(wrappedValue: services.reminders)
+        _tasksService = StateObject(wrappedValue: services.tasks)
+        _notifications = StateObject(wrappedValue: services.notifications)
+        _router = StateObject(wrappedValue: services.router)
+        _sync = StateObject(wrappedValue: services.sync)
+        _attachmentFiles = StateObject(wrappedValue: services.attachmentFiles)
+        _keyProvisioning = StateObject(wrappedValue: services.keyProvisioning)
 
-        // Reminder notifications and their actions. Both registrations have to happen during
-        // launch: a notification action can be what launched the app, and iOS only runs a
-        // background task registered before launch finishes.
-        let reminders = RemindersService(client: client)
-        _remindersService = StateObject(wrappedValue: reminders)
-        let router = AppRouter()
-        _router = StateObject(wrappedValue: router)
-        let notifications = ReminderNotifications()
-        notifications.reminders = reminders
-        notifications.onOpen = { [weak router] id in router?.open(reminderID: id) }
-        notifications.configure()
-        _notifications = StateObject(wrappedValue: notifications)
-
-        // Live changes from the web and other devices, and edits made offline.
-        let signals = CalendarSignalsClient(token: { [weak authService] in
-            guard let authService else { return nil }
-            await authService.refreshTokenIfNeeded()
-            return authService.accessToken()
-        })
-        let sync = CalendarSync(client: client, signals: signals, pending: PendingWrites(),
-                                events: events, reminders: reminders, tasks: tasks)
-        sync.observe(networkMonitor)
-        _sync = StateObject(wrappedValue: sync)
-
-        BackgroundRefresh.register(auth: authService, sync: sync, reminders: reminders,
-                                   notifications: notifications)
+        // iOS only runs a background task registered before launch finishes.
+        BackgroundRefresh.register(auth: services.auth, sync: services.sync, reminders: services.reminders,
+                                   notifications: services.notifications)
     }
 
     var body: some Scene {
@@ -81,10 +59,18 @@ struct NeutrinoCalendarApp: App {
                 .environmentObject(sync.pending)
                 .environmentObject(attachmentFiles)
                 .environmentObject(keyProvisioning)
+                // A Spotlight result opens its event.
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    guard let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+                          let link = EventLink(string: id) else { return }
+                    router.open(link)
+                }
         }
         .onChange(of: scenePhase) { phase in
             switch phase {
             case .active:
+                // A Focus that changed while the app was away.
+                eventsService.setSourceFilter(.load())
                 // Reconnects the live signal and catches up on changes made elsewhere while the
                 // app was away; the reminders reload re-plans the notifications.
                 if authService.isAuthenticated { sync.start() }
@@ -143,8 +129,10 @@ private struct RootContentView: View {
                 eventsService.reset()
                 remindersService.reset()
                 tasksService.reset()
-                // The next account must not be reminded of this one's reminders.
+                // The next account must not be reminded of this one's reminders, or find its
+                // events in Spotlight.
                 Task { await notifications.removeAll() }
+                Task { await AppServices.shared.spotlight.removeAll() }
             } else {
                 sync.start()
             }

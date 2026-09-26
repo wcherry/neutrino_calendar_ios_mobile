@@ -423,11 +423,26 @@ Goal: Calendar shows up everywhere iOS shows a calendar.
 
 ⸻
 
-### ⬜ Epic 16 — Siri, Shortcuts & Spotlight
+### ✅ Epic 16 — Siri, Shortcuts & Spotlight
 
-* ⬜ App Intents: "What's next", "Add event", "Add reminder"
-* ⬜ Spotlight indexing of upcoming events
-* ⬜ Focus filters (show only selected calendars)
+* ✅ App Intents: "What's next", "Add event", "Add reminder", with App Shortcut phrases that
+  need no setup. "Calendar" is also Apple's app's name, so Siri answers to "Neutrino" and
+  "Neutrino Calendar" too (`INAlternativeAppNames`). What's next answers the next timed event,
+  or the one under way, in the coming week; all-day events are left out. Add event is an hour
+  long unless an end is given. Add reminder plans the reminder's alert at once, even with the
+  app closed. The intents run in the app's process on the same services (`AppServices`)
+* ✅ An Event entity for Shortcuts (returned by What's next and Add event) and Open Event
+* ✅ Tasks by voice: "Add task" reads what is said through Smart Add, as the quick-add box
+  does ("buy milk tomorrow 5pm #errands"), and "What's due today" lists the open tasks due
+  today, timed ones by their time, then the overdue ones. Both return Task entities
+* ✅ Spotlight indexing of the next 30 days: each event once, at its next occurrence, with its
+  time and place but not its notes. The set is replaced after an edit here, on a change made
+  elsewhere, on foreground and from background refresh, and removed on sign-out. Each item
+  expires when its event ends. A result opens the event on its day
+* ✅ Focus filters (show only selected calendars). Until provider connections have their own
+  calendars (Epic 17), the calendars to choose from are the sources: Neutrino, Google,
+  Outlook, iCloud. The filter applies to every view and to What's next, and a banner under
+  the calendar says what is hidden
 
 ⸻
 
