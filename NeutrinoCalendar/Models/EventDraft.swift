@@ -192,3 +192,25 @@ struct EventDraft: Equatable {
     private func trimmed(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
     private func nonEmpty(_ s: String) -> String? { trimmed(s).isEmpty ? nil : trimmed(s) }
 }
+
+// MARK: - Local edits
+
+extension CalendarEvent {
+    /// `event` as `draft` would leave it: what an edit made offline shows until the server has
+    /// it. Times are read back from the wire form, so an all-day event is its dates, as a loaded
+    /// one is.
+    init(_ event: CalendarEvent, editedTo draft: EventDraft) {
+        let times = draft.wireTimes
+        self.init(id: event.id,
+                  title: draft.trimmedTitle,
+                  description: draft.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : draft.notes,
+                  start: ServerDate.parse(times.start) ?? draft.start,
+                  end: ServerDate.parse(times.end) ?? draft.end,
+                  allDay: draft.allDay,
+                  location: draft.location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : draft.location,
+                  recurrenceRule: draft.repeatOption.rule,
+                  attendees: draft.attendees,
+                  source: event.source,
+                  timezone: draft.wireTimeZone)
+    }
+}

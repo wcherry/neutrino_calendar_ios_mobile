@@ -13,6 +13,7 @@ struct ContentView: View {
         TabView(selection: $router.tab) {
             NavigationStack {
                 CalendarHomeView()
+                    .safeAreaInset(edge: .bottom, spacing: 0) { PendingWritesBanner() }
             }
             .tabItem { Label("Calendar", systemImage: "calendar") }
             .tag(Tab.calendar)
@@ -20,6 +21,7 @@ struct ContentView: View {
             if FeatureFlags.reminders {
                 NavigationStack {
                     RemindersView()
+                    .safeAreaInset(edge: .bottom, spacing: 0) { PendingWritesBanner() }
                 }
                 .tabItem { Label("Reminders", systemImage: "bell") }
                 .tag(Tab.reminders)
@@ -28,6 +30,7 @@ struct ContentView: View {
             if FeatureFlags.tasks {
                 NavigationStack {
                     TasksView()
+                    .safeAreaInset(edge: .bottom, spacing: 0) { PendingWritesBanner() }
                 }
                 .tabItem { Label("Tasks", systemImage: "checklist") }
                 .tag(Tab.tasks)
@@ -50,4 +53,5 @@ struct ContentView: View {
         .environmentObject(TasksService(client: CalendarAPIClient(token: { nil })))
         .environmentObject(ReminderNotifications())
         .environmentObject(AppRouter())
+        .environmentObject(PendingWrites(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview-pending.json")))
 }

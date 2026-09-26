@@ -35,7 +35,7 @@ struct TimeGridView: View {
             // A fresh scroll view per day or week, so moving to another one opens it at its own
             // starting hour. Scrolling the same view on change of `days` did not take effect.
             .id(days.first)
-            .refreshable { await events.reload(for: days.count > 1 ? .week : .day) }
+            .refreshable { await events.refreshFromProviders(for: days.count > 1 ? .week : .day) }
         }
     }
 

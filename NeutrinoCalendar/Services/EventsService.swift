@@ -35,21 +35,47 @@ final class EventsService: ObservableObject {
     /// Bumped whenever the cache is thrown away, so a view that loads on change of it loads again.
     @Published private(set) var generation = 0
 
+    /// The events each loaded month was answered with, before expansion: what a change from the
+    /// changes feed is applied to.
+    private var rawByMonth: [Date: [CalendarEvent]] = [:]
+    /// Where the changes feed picks up. Taken before the first month loads, so a change made
+    /// during a load is still reported; nil when nothing is loaded.
+    private(set) var cursor: String?
+    private var isPulling = false
+    private var pullAgain = false
+
     private let client: CalendarAPIClient
-    let calendar: Calendar
+    /// Where an edit or delete goes when the server can't be reached. Without one, it fails.
+    var pending: PendingWrites?
+    /// The day weeks start on. Set from Settings; every grid reads it through `calendar`.
+    @Published private(set) var weekStart: WeekStart
+    private let baseCalendar: Calendar
     private let now: () -> Date
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NeutrinoCalendar",
                                 category: "EventsService")
 
-    init(client: CalendarAPIClient, calendar: Calendar = .current, now: @escaping () -> Date = Date.init) {
+    init(client: CalendarAPIClient, calendar: Calendar = .current, weekStart: WeekStart = .stored,
+         now: @escaping () -> Date = Date.init) {
         self.client = client
-        self.calendar = calendar
+        self.baseCalendar = calendar
+        self.weekStart = weekStart
         self.now = now
         self.focus = calendar.startOfDay(for: now())
     }
 
     // MARK: - Queries
+
+    /// The device's calendar with the chosen first weekday, rather than the region's.
+    var calendar: Calendar {
+        var calendar = baseCalendar
+        calendar.firstWeekday = weekStart.firstWeekday
+        return calendar
+    }
+
+    func setWeekStart(_ weekStart: WeekStart) {
+        self.weekStart = weekStart
+    }
 
     var today: Date { calendar.startOfDay(for: now()) }
 
@@ -129,9 +155,20 @@ final class EventsService: ObservableObject {
         }
     }
 
-    /// Loads `mode`'s months again, for pull-to-refresh.
+    /// Loads `mode`'s months again.
     func reload(for mode: CalendarMode) async {
         for month in months(for: mode) { await load(month) }
+    }
+
+    /// Pull-to-refresh: asks the server to pull from Google, Outlook and Apple first, then
+    /// reloads. A provider that fails to sync is not worth an error; what is stored still loads.
+    func refreshFromProviders(for mode: CalendarMode) async {
+        do {
+            try await client.triggerProviderSync()
+        } catch {
+            logger.error("provider sync failed: \(error, privacy: .public)")
+        }
+        await reload(for: mode)
     }
 
     /// Drops every loaded month, for after a change made elsewhere in the app, such as a task put
@@ -139,6 +176,8 @@ final class EventsService: ObservableObject {
     /// one that is not on screen. The calendar reloads what it shows the next time it appears.
     func invalidate() {
         byMonth = [:]
+        rawByMonth = [:]
+        cursor = nil
         generation += 1
     }
 
@@ -148,7 +187,10 @@ final class EventsService: ObservableObject {
         error = nil
         defer { loadingMonths.remove(month) }
         do {
+            // Best effort: without a cursor, the next pull reloads the loaded months instead.
+            if cursor == nil { cursor = try? await client.eventChanges(since: nil).cursor }
             let events = try await client.events(from: range.from, to: range.to)
+            rawByMonth[month] = events
             byMonth[month] = RecurrenceExpander.expand(events, from: range.from, to: range.to,
                                                        calendar: calendar)
             logger.debug("loaded \(events.count) event(s) for a month")
@@ -161,9 +203,76 @@ final class EventsService: ObservableObject {
     /// Forgets everything loaded, for sign-out: the next account must never see this one's events.
     func reset() {
         byMonth = [:]
+        rawByMonth = [:]
+        cursor = nil
         loadingMonths = []
         error = nil
         focus = today
+    }
+
+    // MARK: - Changes made elsewhere
+
+    /// Brings the loaded months up to date with the changes feed: an event changed or deleted on
+    /// the web or another device. Called on a live signal, on coming back to the foreground, and
+    /// from background refresh. A call made while one is running runs again after it, so a signal
+    /// that lands mid-pull is not lost.
+    func pullChanges() async {
+        guard !byMonth.isEmpty else { return } // nothing held; the next load starts fresh
+        if isPulling {
+            pullAgain = true
+            return
+        }
+        isPulling = true
+        defer { isPulling = false }
+        repeat {
+            pullAgain = false
+            guard let since = cursor else {
+                // The cursor could not be had when the months loaded; load them again.
+                for month in Array(byMonth.keys) { await load(month) }
+                continue
+            }
+            do {
+                let changes = try await client.eventChanges(since: since)
+                if changes.fullResyncRequired {
+                    invalidate()
+                    return
+                }
+                apply(changed: changes.events, deleted: changes.deletedIds)
+                cursor = changes.cursor
+            } catch {
+                logger.error("pull failed: \(error, privacy: .public)")
+                return
+            }
+        } while pullAgain
+    }
+
+    /// Puts changed events into, and takes deleted ones out of, every loaded month, and expands
+    /// again the months that changed.
+    private func apply(changed: [CalendarEvent], deleted: [String]) {
+        guard !changed.isEmpty || !deleted.isEmpty else { return }
+        for (month, held) in rawByMonth {
+            let range = Self.monthRange(month, calendar: calendar)
+            let merged = Self.merge(held, changed: changed, deleted: Set(deleted), from: range.from, to: range.to)
+            guard merged != held else { continue }
+            rawByMonth[month] = merged
+            byMonth[month] = RecurrenceExpander.expand(merged, from: range.from, to: range.to, calendar: calendar)
+        }
+        logger.debug("applied \(changed.count) change(s), \(deleted.count) deletion(s)")
+    }
+
+    /// `held` with every event in `changed` or `deleted` taken out, and those of `changed` that
+    /// belong to the range put back in.
+    static func merge(_ held: [CalendarEvent], changed: [CalendarEvent], deleted: Set<String>,
+                      from: Date, to: Date) -> [CalendarEvent] {
+        let touched = deleted.union(changed.map(\.id))
+        return held.filter { !touched.contains($0.id) }
+            + changed.filter { belongs($0, from: from, to: to) }
+    }
+
+    /// The server's own test for listing an event in a range (`find_by_user` in
+    /// `events/repository.rs`): it starts by the range's end, and ends in it or repeats.
+    static func belongs(_ event: CalendarEvent, from: Date, to: Date) -> Bool {
+        event.start <= to && (event.end >= from || event.recurrenceRule != nil)
     }
 
     // MARK: - Changes
@@ -179,22 +288,79 @@ final class EventsService: ObservableObject {
 
     /// Saves what changed between `original` and `draft`; returns the event unchanged when
     /// nothing did.
+    ///
+    /// Unless `overwrite`, it first checks the event as the server has it now, and throws
+    /// `EditConflict` if the event was deleted, or one of the fields being saved was changed,
+    /// somewhere else since `original` was read. Offline, the edit is queued and shown at once.
     @discardableResult
-    func update(_ event: CalendarEvent, from original: EventDraft, to draft: EventDraft) async throws -> CalendarEvent {
+    func update(_ event: CalendarEvent, from original: EventDraft, to draft: EventDraft,
+                overwrite: Bool = false) async throws -> CalendarEvent {
         let request = draft.updateRequest(from: original)
         guard request != UpdateEventRequest() else { return event }
-        let updated = try await client.updateEvent(id: event.id, request)
-        invalidate()
-        return updated
+        do {
+            if !overwrite { try await checkForConflict(event, from: original, saving: request) }
+            let updated = try await client.updateEvent(id: event.id, request)
+            invalidate()
+            return updated
+        } catch let error as CalendarAPIError where error.isNetwork && pending != nil {
+            pending?.enqueue(PendingWrite(method: "PUT", path: "/api/v1/calendar/events/\(event.id)", json: request))
+            let local = CalendarEvent(event, editedTo: draft)
+            apply(changed: [local], deleted: [])
+            return local
+        }
     }
 
+    private func checkForConflict(_ event: CalendarEvent, from original: EventDraft,
+                                  saving request: UpdateEventRequest) async throws {
+        let current: CalendarEvent
+        do {
+            current = try await client.event(id: event.id)
+        } catch let error as CalendarAPIError where error.isNotFound {
+            throw EditConflict.deletedElsewhere
+        }
+        // What was changed elsewhere, measured from the same starting point as this edit.
+        let theirs = EventDraft(editing: current, calendar: calendar).updateRequest(from: original)
+        let clashes = EditConflict.clashes(mine: request, theirs: theirs)
+        if !clashes.isEmpty { throw EditConflict.changedElsewhere(clashes) }
+    }
+
+    /// Deleting something already deleted elsewhere is not an error. Offline, the delete is queued
+    /// and the event goes at once.
     func delete(_ event: CalendarEvent) async throws {
-        try await client.deleteEvent(id: event.id)
-        invalidate()
+        do {
+            try await client.deleteEvent(id: event.id)
+            invalidate()
+        } catch let error as CalendarAPIError where error.isNotFound {
+            invalidate()
+        } catch let error as CalendarAPIError where error.isNetwork && pending != nil {
+            pending?.enqueue(PendingWrite(method: "DELETE", path: "/api/v1/calendar/events/\(event.id)"))
+            apply(changed: [], deleted: [event.id])
+        }
+    }
+
+    /// The event as the server has it now.
+    func event(id: String) async throws -> CalendarEvent {
+        try await client.event(id: id)
     }
 
     func attachments(for event: CalendarEvent) async throws -> [EventAttachment] {
         try await client.attachments(forEvent: event.id)
+    }
+
+    func addAttachment(_ request: CreateAttachmentRequest, to event: CalendarEvent) async throws -> Attachment {
+        try await client.addEventAttachment(eventID: event.id, request)
+    }
+
+    func deleteAttachment(_ attachment: Attachment, from event: CalendarEvent) async throws {
+        try await client.deleteEventAttachment(eventID: event.id, attachmentID: attachment.id)
+    }
+
+    /// The attachments of `event`, for `AttachmentsSection`.
+    func attachmentOwner(_ event: CalendarEvent) -> AttachmentOwner {
+        AttachmentOwner(id: "event-\(event.id)",
+                        load: { try await self.attachments(for: event) },
+                        add: { try await self.addAttachment($0, to: event) },
+                        delete: { try await self.deleteAttachment($0, from: event) })
     }
 
     // MARK: - Layout

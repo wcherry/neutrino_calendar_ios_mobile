@@ -95,7 +95,7 @@ struct MonthView: View {
         }
         .listStyle(.insetGrouped)
         .densityList()
-        .refreshable { await events.reload(for: .month) }
+        .refreshable { await events.refreshFromProviders(for: .month) }
     }
 }
 

@@ -13,7 +13,7 @@ struct AgendaView: View {
 
     var body: some View {
         content
-            .refreshable { await events.reload(for: .agenda) }
+            .refreshable { await events.refreshFromProviders(for: .agenda) }
             .onChange(of: compactLayout) { _ in scrolledToTodayIn = nil }
     }
 

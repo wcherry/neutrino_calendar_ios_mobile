@@ -71,7 +71,13 @@ final class EventsServiceTests: XCTestCase {
         config.protocolClasses = [MockURLProtocol.self]
         let client = CalendarAPIClient(session: URLSession(configuration: config),
                                        baseURL: { "https://example.test" }, token: { "tok" })
-        return EventsService(client: client, calendar: calendar, now: { self.date("2026-09-15T19:00:00Z") })
+        return EventsService(client: client, calendar: calendar, weekStart: .sunday,
+                             now: { self.date("2026-09-15T19:00:00Z") })
+    }
+
+    /// Month loads, leaving out the changes-feed cursor each load may ask for first.
+    private var listRequests: Int {
+        MockURLProtocol.requests.filter { $0.url?.path == "/api/v1/calendar/events" }.count
     }
 
     private static let weekly = """
@@ -100,10 +106,10 @@ final class EventsServiceTests: XCTestCase {
         await service.ensureLoaded(for: .month)
         await service.ensureLoaded(for: .day)
         await service.ensureLoaded(for: .agenda)
-        XCTAssertEqual(MockURLProtocol.requests.count, 1, "the same month, three views, one request")
+        XCTAssertEqual(listRequests, 1, "the same month, three views, one request")
 
         await service.reload(for: .month)
-        XCTAssertEqual(MockURLProtocol.requests.count, 2)
+        XCTAssertEqual(listRequests, 2)
     }
 
     /// A week that crosses a month end needs both months, each fetched with the web's range.

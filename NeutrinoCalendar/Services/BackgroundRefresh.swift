@@ -3,7 +3,8 @@ import Foundation
 import NeutrinoAuth
 
 /// Re-syncs reminders and re-plans their notifications while the app is not open, so an alert
-/// set on the web reaches the phone before it is due. iOS decides when a refresh actually runs;
+/// set on the web reaches the phone before it is due. Sends edits queued offline and brings the
+/// events in memory up to date too. iOS decides when a refresh actually runs;
 /// this asks for one about every half hour.
 enum BackgroundRefresh {
     /// Listed in `BGTaskSchedulerPermittedIdentifiers` in project.yml.
@@ -12,7 +13,8 @@ enum BackgroundRefresh {
 
     /// Must run during launch, before the app finishes launching.
     @MainActor
-    static func register(auth: AuthService, reminders: RemindersService, notifications: ReminderNotifications) {
+    static func register(auth: AuthService, sync: CalendarSync, reminders: RemindersService,
+                         notifications: ReminderNotifications) {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in
             // The next one is asked for first, so a refresh that fails doesn't end the chain.
             schedule()
@@ -21,7 +23,8 @@ enum BackgroundRefresh {
                     task.setTaskCompleted(success: true)
                     return
                 }
-                await reminders.reload()
+                // Reloads the reminders, among the rest.
+                await sync.catchUp()
                 if reminders.hasLoaded { await notifications.apply(reminders.reminders) }
                 task.setTaskCompleted(success: reminders.error == nil)
             }
