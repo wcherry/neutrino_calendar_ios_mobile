@@ -38,6 +38,7 @@ struct ReminderEditorView: View {
     @State private var tasks: [CalendarTask] = []
     @State private var isSaving = false
     @State private var error: String?
+    @State private var conflict: EditConflict?
 
     private var existing: Reminder? {
         if case .edit(let reminder) = mode { return reminder }
@@ -96,6 +97,12 @@ struct ReminderEditorView: View {
             }
             .onAppear(perform: fill)
             .task { await loadTasksIfLinkable() }
+            .editConflictAlert($conflict,
+                               overwrite: { Task { await save(overwrite: true) } },
+                               discard: {
+                                   Task { await reminders.reload() }
+                                   dismiss()
+                               })
         }
     }
 
@@ -164,7 +171,7 @@ struct ReminderEditorView: View {
         tasks = (try? await reminders.tasks()) ?? []
     }
 
-    private func save() async {
+    private func save(overwrite: Bool = false) async {
         isSaving = true
         error = nil
         defer { isSaving = false }
@@ -174,9 +181,12 @@ struct ReminderEditorView: View {
                 try await reminders.create(title: trimmedTitle, due: due, rule: repeatOption.rule,
                                            eventID: link.eventID, task: link.task ?? task)
             case .edit(let reminder):
-                try await reminders.update(reminder, title: trimmedTitle, due: due, rule: repeatOption.rule)
+                try await reminders.update(reminder, title: trimmedTitle, due: due, rule: repeatOption.rule,
+                                           overwrite: overwrite)
             }
             dismiss()
+        } catch let conflict as EditConflict {
+            self.conflict = conflict
         } catch {
             self.error = error.localizedDescription
         }

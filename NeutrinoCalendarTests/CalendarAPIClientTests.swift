@@ -159,6 +159,9 @@ final class MockURLProtocol: URLProtocol {
         queue = answers.map { (status: $0.0, body: Data($0.1.utf8)) }
     }
 
+    /// The status that makes a request fail as it does offline.
+    static let offline = -1
+
     static func respond(status: Int, body: String) {
         self.status = status
         self.body = Data(body.utf8)
@@ -183,6 +186,11 @@ final class MockURLProtocol: URLProtocol {
         }
         Self.requests.append(request)
         let answer = Self.queue.isEmpty ? (status: Self.status, body: Self.body) : Self.queue.removeFirst()
+        // A status of -1 is no answer at all: the device is offline.
+        if answer.status == Self.offline {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+            return
+        }
         let response = HTTPURLResponse(url: request.url!, statusCode: answer.status,
                                        httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)

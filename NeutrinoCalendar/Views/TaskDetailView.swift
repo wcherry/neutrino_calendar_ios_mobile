@@ -29,8 +29,12 @@ struct TaskDetailView: View {
     @State private var newReminder: ReminderEditorView.Mode?
 
     @State private var seeded = false
+    /// The task as the form was filled from it. An edit is measured from this, not from the live
+    /// list, which a change made elsewhere can reload while the form is open.
+    @State private var base: CalendarTask?
     @State private var isSaving = false
     @State private var error: String?
+    @State private var conflict: EditConflict?
 
     /// An hour, the length a task gets when it is first put on the calendar, as on the web.
     private static let defaultSlot: TimeInterval = 60 * 60
@@ -63,6 +67,16 @@ struct TaskDetailView: View {
         }
         .sheet(item: $newReminder) { ReminderEditorView(mode: $0) }
         .task(id: taskID) { await seed() }
+        .editConflictAlert($conflict,
+                           overwrite: { Task { await save(overwrite: true) } },
+                           discard: {
+                               // Shows the task as it is now, or "no longer available".
+                               Task {
+                                   await tasks.reload()
+                                   seeded = false
+                                   await seed()
+                               }
+                           })
     }
 
     @ViewBuilder
@@ -173,6 +187,7 @@ struct TaskDetailView: View {
     private func seed() async {
         guard !seeded, let task else { return }
         seeded = true
+        base = task
         title = task.title
         notes = task.notes ?? ""
         if let day = task.dueDay() {
@@ -217,8 +232,8 @@ struct TaskDetailView: View {
 
     // MARK: - Saving
 
-    private func save() async {
-        guard let task else { return }
+    private func save(overwrite: Bool = false) async {
+        guard let task = base ?? task else { return }
         isSaving = true
         error = nil
         defer { isSaving = false }
@@ -226,7 +241,7 @@ struct TaskDetailView: View {
             // The row first: the event carries the task's title, and the server reads it from
             // the stored row when scheduling.
             let saved = try await tasks.update(task, title: title.trimmingCharacters(in: .whitespaces),
-                                               notes: notes, dueDay: hasDue ? due : nil)
+                                               notes: notes, dueDay: hasDue ? due : nil, overwrite: overwrite)
             let slot = Slot(start: start, end: end, allDay: allDay)
             var calendarChanged = false
             if onCalendar, saved.eventId == nil || slot != original {
@@ -241,6 +256,8 @@ struct TaskDetailView: View {
             }
             if calendarChanged { events.invalidate() }
             dismiss()
+        } catch let conflict as EditConflict {
+            self.conflict = conflict
         } catch {
             self.error = error.localizedDescription
         }

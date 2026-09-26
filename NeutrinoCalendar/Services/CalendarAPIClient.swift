@@ -19,6 +19,16 @@ enum CalendarAPIError: LocalizedError, Equatable {
         case .decodingError:              return "The server sent something this version of Calendar can't read."
         }
     }
+
+    /// The request never got an answer: offline, or the server unreachable. The one failure a
+    /// retry later can fix, and so the one a write is queued for.
+    var isNetwork: Bool {
+        if case .networkError = self { return true }
+        return false
+    }
+
+    /// The server answered 404: the thing is gone, deleted here or somewhere else.
+    var isNotFound: Bool { self == .serverError(statusCode: 404) }
 }
 
 // MARK: - CalendarAPIClient
@@ -38,6 +48,12 @@ final class CalendarAPIClient {
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NeutrinoCalendar",
                                 category: "CalendarAPIClient")
+
+    /// Sent as `X-Neutrino-Client-Id` on every request, and compared with a live signal's
+    /// `originClientId`, so the app can skip the echo of its own writes. New each launch: it names
+    /// this running app, not the device.
+    static let clientID = UUID().uuidString
+    static let clientIDHeader = "X-Neutrino-Client-Id"
 
     init(session: URLSession = .shared,
          baseURL: @escaping () -> String = { NeutrinoStorage.serverHost },
@@ -103,6 +119,28 @@ final class CalendarAPIClient {
 
     func deleteReminder(id: String) async throws {
         _ = try await send("DELETE", "/api/v1/calendar/reminders/\(id)")
+    }
+
+    /// What changed since `since` (a previous answer's `cursor`); with no cursor, only a cursor to
+    /// start from. Take one before loading, so nothing changed during the load is missed.
+    func eventChanges(since: String?) async throws -> EventChanges {
+        try await get("/api/v1/calendar/events/changes",
+                      query: since.map { [URLQueryItem(name: "since", value: $0)] } ?? [])
+    }
+
+    /// Asks the server to pull from every connected provider (Google, Outlook, Apple) now. Answers
+    /// once the pull is done, so a reload straight after sees what it brought in.
+    func triggerProviderSync() async throws {
+        _ = try await send("POST", "/api/v1/calendar/sync/trigger", body: TriggerSyncRequest())
+    }
+
+    func reminder(id: String) async throws -> Reminder {
+        try await get("/api/v1/calendar/reminders/\(id)")
+    }
+
+    /// Sends a write that was queued while offline, exactly as it was first attempted.
+    func replay(_ write: PendingWrite) async throws {
+        _ = try await send(write.method, write.path, bodyData: write.body)
     }
 
     func event(id: String) async throws -> CalendarEvent {
@@ -193,6 +231,11 @@ final class CalendarAPIClient {
 
     private func send(_ method: String, _ path: String, query: [URLQueryItem] = [],
                       body: (any Encodable)? = nil) async throws -> Data {
+        try await send(method, path, query: query, bodyData: body.map { try JSONEncoder().encode($0) })
+    }
+
+    private func send(_ method: String, _ path: String, query: [URLQueryItem] = [],
+                      bodyData: Data?) async throws -> Data {
         guard var components = URLComponents(string: baseURL() + path) else {
             throw CalendarAPIError.serverError(statusCode: 0)
         }
@@ -206,9 +249,10 @@ final class CalendarAPIClient {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        if let body {
+        request.setValue(Self.clientID, forHTTPHeaderField: Self.clientIDHeader)
+        if let bodyData {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(body)
+            request.httpBody = bodyData
         }
 
         logger.debug("--> \(method, privacy: .public) \(path, privacy: .public)")
@@ -235,3 +279,18 @@ final class CalendarAPIClient {
         return data
     }
 }
+
+// MARK: - Sync DTOs
+
+/// `EventChangesResponse` in `neutrino/src/calendar/events/dto.rs`.
+struct EventChanges: Decodable {
+    let events: [CalendarEvent]
+    let deletedIds: [String]
+    /// Pass as `since` next time.
+    let cursor: String
+    /// The cursor is older than the server keeps deletions for: drop everything and load afresh.
+    let fullResyncRequired: Bool
+}
+
+/// No connection id: sync every provider the user has connected.
+struct TriggerSyncRequest: Encodable {}

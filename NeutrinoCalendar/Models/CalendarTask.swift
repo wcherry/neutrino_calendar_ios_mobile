@@ -77,6 +77,16 @@ struct CalendarTask: Decodable, Identifiable, Hashable {
         self.location = location
     }
 
+    /// This task with some fields changed: what an edit made offline shows until the server has it.
+    func with(title: String? = nil, notes: String?? = nil, done: Bool? = nil,
+              dueDate: Date?? = nil, dueHasTime: Bool? = nil) -> CalendarTask {
+        CalendarTask(id: id, title: title ?? self.title, notes: notes ?? self.notes, done: done ?? self.done,
+                     dueDate: dueDate ?? self.dueDate, position: position, eventId: eventId,
+                     dueHasTime: dueHasTime ?? self.dueHasTime, priority: priority, tags: tags,
+                     recurrenceRule: recurrenceRule, repeatAfterCompletion: repeatAfterCompletion,
+                     estimateMinutes: estimateMinutes, location: location)
+    }
+
     /// The due date as the calendar day it names, formatted in UTC so it is the same day in every
     /// zone — or, for a timed due, the local date and time it is at.
     var dueDateText: String? {

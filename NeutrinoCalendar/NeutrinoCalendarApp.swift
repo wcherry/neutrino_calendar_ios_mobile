@@ -15,6 +15,7 @@ struct NeutrinoCalendarApp: App {
     @StateObject private var tasksService: TasksService
     @StateObject private var notifications: ReminderNotifications
     @StateObject private var router: AppRouter
+    @StateObject private var sync: CalendarSync
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -25,10 +26,13 @@ struct NeutrinoCalendarApp: App {
 
         let authService = AuthService()
         _authService = StateObject(wrappedValue: authService)
-        _networkMonitor = StateObject(wrappedValue: NetworkMonitor())
+        let networkMonitor = NetworkMonitor()
+        _networkMonitor = StateObject(wrappedValue: networkMonitor)
         let client = CalendarAPIClient(authService: authService)
-        _eventsService = StateObject(wrappedValue: EventsService(client: client))
-        _tasksService = StateObject(wrappedValue: TasksService(client: client))
+        let events = EventsService(client: client)
+        _eventsService = StateObject(wrappedValue: events)
+        let tasks = TasksService(client: client)
+        _tasksService = StateObject(wrappedValue: tasks)
 
         // Reminder notifications and their actions. Both registrations have to happen during
         // launch: a notification action can be what launched the app, and iOS only runs a
@@ -42,7 +46,20 @@ struct NeutrinoCalendarApp: App {
         notifications.onOpen = { [weak router] id in router?.open(reminderID: id) }
         notifications.configure()
         _notifications = StateObject(wrappedValue: notifications)
-        BackgroundRefresh.register(auth: authService, reminders: reminders, notifications: notifications)
+
+        // Live changes from the web and other devices, and edits made offline.
+        let signals = CalendarSignalsClient(token: { [weak authService] in
+            guard let authService else { return nil }
+            await authService.refreshTokenIfNeeded()
+            return authService.accessToken()
+        })
+        let sync = CalendarSync(client: client, signals: signals, pending: PendingWrites(),
+                                events: events, reminders: reminders, tasks: tasks)
+        sync.observe(networkMonitor)
+        _sync = StateObject(wrappedValue: sync)
+
+        BackgroundRefresh.register(auth: authService, sync: sync, reminders: reminders,
+                                   notifications: notifications)
     }
 
     var body: some Scene {
@@ -55,13 +72,17 @@ struct NeutrinoCalendarApp: App {
                 .environmentObject(tasksService)
                 .environmentObject(notifications)
                 .environmentObject(router)
+                .environmentObject(sync)
+                .environmentObject(sync.pending)
         }
         .onChange(of: scenePhase) { phase in
             switch phase {
             case .active:
-                // Catches changes made elsewhere while the app was away; the reload re-plans.
-                if authService.isAuthenticated { Task { await remindersService.reload() } }
+                // Reconnects the live signal and catches up on changes made elsewhere while the
+                // app was away; the reminders reload re-plans the notifications.
+                if authService.isAuthenticated { sync.start() }
             case .background:
+                sync.suspend()
                 BackgroundRefresh.schedule()
             default:
                 break
@@ -79,6 +100,7 @@ private struct RootContentView: View {
     @EnvironmentObject var remindersService: RemindersService
     @EnvironmentObject var tasksService: TasksService
     @EnvironmentObject var notifications: ReminderNotifications
+    @EnvironmentObject var sync: CalendarSync
 
     var body: some View {
         Group {
@@ -91,9 +113,9 @@ private struct RootContentView: View {
         .task {
             if authService.isAuthenticated {
                 await authService.refreshTokenIfNeeded()
-                // Loaded at launch, not only when the Reminders tab opens: the notifications are
-                // planned from this list.
-                await remindersService.reload()
+                // Loads reminders at launch, not only when the Reminders tab opens: the
+                // notifications are planned from that list.
+                sync.start()
             }
         }
         // Every change to the list re-plans the notifications. Only once the list has loaded:
@@ -105,13 +127,14 @@ private struct RootContentView: View {
         }
         .onChange(of: authService.isAuthenticated) { isAuthenticated in
             if !isAuthenticated {
+                sync.stop()
                 eventsService.reset()
                 remindersService.reset()
                 tasksService.reset()
                 // The next account must not be reminded of this one's reminders.
                 Task { await notifications.removeAll() }
             } else {
-                Task { await remindersService.reload() }
+                sync.start()
             }
         }
     }

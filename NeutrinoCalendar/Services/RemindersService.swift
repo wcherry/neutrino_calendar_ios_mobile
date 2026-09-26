@@ -19,6 +19,8 @@ final class RemindersService: ObservableObject {
 
     private let client: CalendarAPIClient
     private let timeZone: () -> TimeZone
+    /// Where an edit, completion or delete goes when the server can't be reached.
+    var pending: PendingWrites?
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NeutrinoCalendar",
                                 category: "RemindersService")
@@ -115,15 +117,46 @@ final class RemindersService: ObservableObject {
     }
 
     /// Saves an edit. Only what changed is sent, so an edit never overwrites a field someone else
-    /// changed on another device in the meantime.
-    func update(_ reminder: Reminder, title: String, due: Date, rule: String?) async throws {
+    /// changed on another device in the meantime, and unless `overwrite`, the save stops with
+    /// `EditConflict` when someone changed one of the *same* fields. Offline, it is queued.
+    func update(_ reminder: Reminder, title: String, due: Date, rule: String?,
+                overwrite: Bool = false) async throws {
+        let request = Self.request(from: reminder, title: title, due: due, rule: rule)
+        guard request != UpdateReminderRequest() else { return }
+        do {
+            if !overwrite {
+                let current: Reminder
+                do {
+                    current = try await client.reminder(id: reminder.id)
+                } catch let error as CalendarAPIError where error.isNotFound {
+                    reminders.removeAll { $0.id == reminder.id }
+                    throw EditConflict.deletedElsewhere
+                }
+                let theirs = Self.request(from: reminder, title: current.title, due: current.due,
+                                          rule: current.recurrenceRule)
+                let clashes = EditConflict.clashes(mine: request, theirs: theirs)
+                if !clashes.isEmpty { throw EditConflict.changedElsewhere(clashes) }
+            }
+            replace(try await client.updateReminder(id: reminder.id, request))
+        } catch let error as CalendarAPIError where error.isNetwork && pending != nil {
+            pending?.enqueue(PendingWrite(method: "PATCH", path: Self.path(reminder), json: request))
+            replace(Reminder(id: reminder.id, title: title, due: due, completed: reminder.completed,
+                             recurrenceRule: rule, linkedEventId: reminder.linkedEventId,
+                             linkedTaskId: reminder.linkedTaskId))
+        }
+    }
+
+    /// The fields that differ between `reminder` and the values given: an edit's request, or,
+    /// given the server's current values, what was changed elsewhere.
+    static func request(from reminder: Reminder, title: String, due: Date, rule: String?) -> UpdateReminderRequest {
         var request = UpdateReminderRequest()
         if title != reminder.title { request.title = title }
         if due != reminder.due { request.dueTime = ServerDate.format(due) }
         if rule != reminder.recurrenceRule { request.recurrenceRule = rule ?? "" }
-        guard request != UpdateReminderRequest() else { return }
-        replace(try await client.updateReminder(id: reminder.id, request))
+        return request
     }
+
+    private static func path(_ reminder: Reminder) -> String { "/api/v1/calendar/reminders/\(reminder.id)" }
 
     /// Ticks a reminder off or back on. The zone goes with a completion so the server steps a
     /// recurring reminder in local time.
@@ -131,7 +164,18 @@ final class RemindersService: ObservableObject {
         do {
             let request = UpdateReminderRequest(completed: completed,
                                                 timezone: completed ? timeZone().identifier : nil)
-            replace(try await client.updateReminder(id: reminder.id, request))
+            do {
+                replace(try await client.updateReminder(id: reminder.id, request))
+            } catch let error as CalendarAPIError where error.isNetwork && pending != nil {
+                pending?.enqueue(PendingWrite(method: "PATCH", path: Self.path(reminder), json: request))
+                // A repeating one moves to its next time on the server; only a one-off can be
+                // shown ticked off before then.
+                if reminder.recurrenceRule == nil {
+                    replace(Reminder(id: reminder.id, title: reminder.title, due: reminder.due,
+                                     completed: completed, linkedEventId: reminder.linkedEventId,
+                                     linkedTaskId: reminder.linkedTaskId))
+                }
+            }
         } catch {
             logger.error("setCompleted failed: \(error, privacy: .public)")
             self.error = error.localizedDescription
@@ -140,7 +184,13 @@ final class RemindersService: ObservableObject {
 
     func delete(_ reminder: Reminder) async {
         do {
-            try await client.deleteReminder(id: reminder.id)
+            do {
+                try await client.deleteReminder(id: reminder.id)
+            } catch let error as CalendarAPIError where error.isNotFound {
+                // Deleted elsewhere already.
+            } catch let error as CalendarAPIError where error.isNetwork && pending != nil {
+                pending?.enqueue(PendingWrite(method: "DELETE", path: Self.path(reminder)))
+            }
             reminders.removeAll { $0.id == reminder.id }
         } catch {
             logger.error("delete failed: \(error, privacy: .public)")
