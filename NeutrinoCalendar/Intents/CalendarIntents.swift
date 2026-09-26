@@ -1,8 +1,8 @@
 import AppIntents
 import Foundation
 
-// Siri and Shortcuts: "What's next", "Add event" and "Add reminder", plus an event entity that
-// Shortcuts can pass along and open. They run in the app's process, usually with no scene, and
+// Siri and Shortcuts: "What's next", "Add event", "Add reminder", "Add task" and "What's due
+// today", plus event and task entities that Shortcuts can pass along. They run in the app's process, usually with no scene, and
 // use the same services as the app (`AppServices`), so what they add shows up at once and a
 // new reminder's alert is planned straight away.
 
@@ -224,6 +224,110 @@ struct AddReminderIntent: AppIntent {
     }
 }
 
+// MARK: - TaskEntity
+
+/// A task, for Shortcuts: what Add Task and What's Due Today return.
+struct TaskEntity: AppEntity {
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Task"
+    static var defaultQuery = TaskQuery()
+
+    let id: String
+    @Property(title: "Title") var title: String
+    @Property(title: "Due") var due: Date?
+    @Property(title: "Done") var isDone: Bool
+    private let dueText: String?
+
+    init(_ task: CalendarTask, now: Date = Date(), calendar: Calendar) {
+        id = task.id
+        dueText = TaskSpeech.dueText(task, now: now, calendar: calendar)
+        title = task.title
+        due = task.dueDate
+        isDone = task.done
+    }
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(title)",
+                              subtitle: dueText.map { LocalizedStringResource(stringLiteral: "Due \($0)") },
+                              image: .init(systemName: isDone ? "checkmark.circle" : "circle"))
+    }
+}
+
+struct TaskQuery: EntityQuery {
+    func entities(for identifiers: [String]) async throws -> [TaskEntity] {
+        try await Self.tasks().filter { identifiers.contains($0.id) }
+    }
+
+    func suggestedEntities() async throws -> [TaskEntity] {
+        try await Self.tasks().filter { !$0.isDone }
+    }
+
+    /// The whole list, fresh from the server: it is small, and an intent can't trust a list
+    /// loaded before the app went to the background.
+    @MainActor
+    private static func tasks() async throws -> [TaskEntity] {
+        let services = try IntentSupport.services()
+        let tasks = services.tasks
+        await tasks.reload()
+        if let error = tasks.error { throw CalendarIntentError.failed(error) }
+        return tasks.tasks.map { TaskEntity($0, calendar: services.events.calendar) }
+    }
+}
+
+// MARK: - Add Task
+
+struct AddTaskIntent: AppIntent {
+    static var title: LocalizedStringResource = "Add Task"
+    static var description = IntentDescription(
+        "Adds a task to Neutrino. Say it the way you'd type it: \"buy milk tomorrow at 5pm\" is due tomorrow at 5 PM.")
+
+    @Parameter(title: "Task", requestValueDialog: "What's the task?")
+    var task: String
+
+    @Parameter(title: "Due", description: "Overrides a date in the task's words. Midnight means the whole day.")
+    var due: Date?
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Add \(\.$task) to tasks") {
+            \.$due
+        }
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<TaskEntity> & ProvidesDialog {
+        let services = try IntentSupport.services()
+        let calendar = services.events.calendar
+        let now = Date()
+        guard let request = TaskSpeech.request(for: task, due: due, now: now, calendar: calendar) else {
+            throw CalendarIntentError.invalid("A task needs a title.")
+        }
+        let tasks = services.tasks
+        let created = try await IntentSupport.reaching { try await tasks.create(request) }
+        let sentence = TaskSpeech.added(created, now: now, calendar: calendar)
+        return .result(value: TaskEntity(created, now: now, calendar: calendar), dialog: "\(sentence)")
+    }
+}
+
+// MARK: - What's Due Today
+
+struct WhatsDueTodayIntent: AppIntent {
+    static var title: LocalizedStringResource = "What's Due Today"
+    static var description = IntentDescription("Tells you the tasks due today, and any that are overdue.")
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<[TaskEntity]> & ProvidesDialog {
+        let services = try IntentSupport.services()
+        let tasks = services.tasks
+        let calendar = services.events.calendar
+        await tasks.reload()
+        if let error = tasks.error { throw CalendarIntentError.failed(error) }
+        let now = Date()
+        let due = TaskSpeech.dueToday(tasks.tasks, now: now, calendar: calendar)
+        let sentence = TaskSpeech.sentence(overdue: due.overdue, today: due.today, calendar: calendar)
+        return .result(value: (due.overdue + due.today).map { TaskEntity($0, now: now, calendar: calendar) },
+                       dialog: "\(sentence)")
+    }
+}
+
 // MARK: - App Shortcuts
 
 /// The phrases Siri knows without any setup. "Calendar" is also Apple's app's name, so the
@@ -246,5 +350,15 @@ struct CalendarShortcuts: AppShortcutsProvider {
             "Add a reminder to \(.applicationName)",
             "Remind me in \(.applicationName)",
         ], shortTitle: "Add Reminder", systemImageName: "bell.badge")
+        AppShortcut(intent: AddTaskIntent(), phrases: [
+            "Add a task in \(.applicationName)",
+            "Add a task to \(.applicationName)",
+            "New \(.applicationName) task",
+        ], shortTitle: "Add Task", systemImageName: "checklist")
+        AppShortcut(intent: WhatsDueTodayIntent(), phrases: [
+            "What's due today in \(.applicationName)",
+            "What's due in \(.applicationName)",
+            "What tasks are due in \(.applicationName)",
+        ], shortTitle: "What's Due Today", systemImageName: "checklist.checked")
     }
 }

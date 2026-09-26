@@ -433,6 +433,9 @@ Goal: Calendar shows up everywhere iOS shows a calendar.
   long unless an end is given. Add reminder plans the reminder's alert at once, even with the
   app closed. The intents run in the app's process on the same services (`AppServices`)
 * ✅ An Event entity for Shortcuts (returned by What's next and Add event) and Open Event
+* ✅ Tasks by voice: "Add task" reads what is said through Smart Add, as the quick-add box
+  does ("buy milk tomorrow 5pm #errands"), and "What's due today" lists the open tasks due
+  today, timed ones by their time, then the overdue ones. Both return Task entities
 * ✅ Spotlight indexing of the next 30 days: each event once, at its next occurrence, with its
   time and place but not its notes. The set is replaced after an edit here, on a change made
   elsewhere, on foreground and from background refresh, and removed on sign-out. Each item
