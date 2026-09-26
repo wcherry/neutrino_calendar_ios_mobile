@@ -1,6 +1,7 @@
 import SwiftUI
 import NeutrinoCore
 import NeutrinoAuth
+import NeutrinoCrypto
 import NeutrinoUI
 
 @main
@@ -16,6 +17,8 @@ struct NeutrinoCalendarApp: App {
     @StateObject private var notifications: ReminderNotifications
     @StateObject private var router: AppRouter
     @StateObject private var sync: CalendarSync
+    @StateObject private var attachmentFiles: AttachmentFiles
+    @StateObject private var keyProvisioning: KeyProvisioningService
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -33,6 +36,8 @@ struct NeutrinoCalendarApp: App {
         _eventsService = StateObject(wrappedValue: events)
         let tasks = TasksService(client: client)
         _tasksService = StateObject(wrappedValue: tasks)
+        _attachmentFiles = StateObject(wrappedValue: AttachmentFiles(client: client))
+        _keyProvisioning = StateObject(wrappedValue: KeyProvisioningService(authService: authService))
 
         // Reminder notifications and their actions. Both registrations have to happen during
         // launch: a notification action can be what launched the app, and iOS only runs a
@@ -74,6 +79,8 @@ struct NeutrinoCalendarApp: App {
                 .environmentObject(router)
                 .environmentObject(sync)
                 .environmentObject(sync.pending)
+                .environmentObject(attachmentFiles)
+                .environmentObject(keyProvisioning)
         }
         .onChange(of: scenePhase) { phase in
             switch phase {
@@ -101,6 +108,7 @@ private struct RootContentView: View {
     @EnvironmentObject var tasksService: TasksService
     @EnvironmentObject var notifications: ReminderNotifications
     @EnvironmentObject var sync: CalendarSync
+    @EnvironmentObject var attachmentFiles: AttachmentFiles
 
     var body: some View {
         Group {
@@ -128,6 +136,8 @@ private struct RootContentView: View {
         .onChange(of: authService.isAuthenticated) { isAuthenticated in
             if !isAuthenticated {
                 sync.stop()
+                // Decrypted attachments must not outlive the session that opened them.
+                attachmentFiles.clearCache()
                 eventsService.reset()
                 remindersService.reset()
                 tasksService.reset()

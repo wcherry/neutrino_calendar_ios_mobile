@@ -332,6 +332,22 @@ final class EventsService: ObservableObject {
         try await client.attachments(forEvent: event.id)
     }
 
+    func addAttachment(_ request: CreateAttachmentRequest, to event: CalendarEvent) async throws -> Attachment {
+        try await client.addEventAttachment(eventID: event.id, request)
+    }
+
+    func deleteAttachment(_ attachment: Attachment, from event: CalendarEvent) async throws {
+        try await client.deleteEventAttachment(eventID: event.id, attachmentID: attachment.id)
+    }
+
+    /// The attachments of `event`, for `AttachmentsSection`.
+    func attachmentOwner(_ event: CalendarEvent) -> AttachmentOwner {
+        AttachmentOwner(id: "event-\(event.id)",
+                        load: { try await self.attachments(for: event) },
+                        add: { try await self.addAttachment($0, to: event) },
+                        delete: { try await self.deleteAttachment($0, from: event) })
+    }
+
     // MARK: - Layout
 
     static func firstOfMonth(_ date: Date, calendar: Calendar) -> Date {

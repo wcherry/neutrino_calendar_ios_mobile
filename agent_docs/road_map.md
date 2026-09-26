@@ -384,18 +384,29 @@ Goal: parity with the web sidebars.
 * ✖ Task lists (create, color, rename) and a task in several lists: **dropped**. The web
   stopped grouping by lists because they are being replaced by tags, so tasks are one flat
   list in the server's order on both clients. Revisit when tags reach tasks
-* ⬜ Attach a Drive file to a task (Epic 14)
+* ✅ Attach a Drive file to a task (Epic 14)
 * ⬜ Delete a task. The server has no route for it, and the web can't either
 * ⬜ Add tasks from a `.txt` or `.csv` file, as the web can
 
 ⸻
 
-### ⬜ Epic 14 — Attachments
+### ✅ Epic 14 — Attachments
 
-* ⬜ Attach a Drive file to an event or task (a Drive picker like web's `DriveFilePicker`)
-* ⬜ Upload from Photos or Files, then attach
-* ⬜ Preview with Quick Look and decrypt E2EE Drive files on the device (reuse `NeutrinoCrypto`)
-* ⬜ Open in Drive, Docs, Sheets or Notes through Universal Links
+* ✅ Attach a Drive file to an event or task, with a Drive picker like the web's `DriveFilePicker`
+  (folders, filter by name). Events and tasks share one attachments section, notes included
+* ✅ Add from Photos or Files. The file is encrypted on the phone and uploaded into Drive's
+  "Attachments" folder, the one the web uses, then attached. Like the web, it never falls back to
+  uploading in the clear. If its key can't be stored, the upload is removed rather than left
+  unreadable
+* ✅ Preview with Quick Look. The file is decrypted on the device with the account key and cached
+  under its content version (complete file protection; cleared on sign-out). Files stored in the
+  clear before encryption open as they are. The crypto is `DriveFileCrypto`, added to
+  `NeutrinoCrypto`; tests show files written by the web's `crypto.ts` open here and vice versa
+* ✅ Open in Docs, Sheets, Slides, Notes or Drive through Universal Links (`NeutrinoAppLink`,
+  universal links only). If the app isn't installed, the file can be previewed here instead
+* ✅ Settings › Encryption: the key comes from the keyring the Neutrino apps share, or from this
+  app's own store. Without one, the section offers setting up encryption, pairing with another
+  device, or restoring from a recovery kit
 
 ⸻
 

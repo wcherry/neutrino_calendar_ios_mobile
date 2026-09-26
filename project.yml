@@ -25,6 +25,8 @@ targets:
       - package: NeutrinoShared
         product: NeutrinoAuth
       - package: NeutrinoShared
+        product: NeutrinoCrypto
+      - package: NeutrinoShared
         product: NeutrinoUI
     settings:
       base:
@@ -40,8 +42,8 @@ targets:
       path: NeutrinoCalendar/NeutrinoCalendar.entitlements
       properties:
         # Cross-app Keychain access group, declared by every Neutrino app. Holds the identity
-        # keyring and nothing else — sessions stay namespaced per app. Calendar has no encrypted
-        # content yet, but attachments are Drive files and will need the keyring (Epic 14).
+        # keyring and nothing else — sessions stay namespaced per app. Calendar's own data isn't
+        # encrypted, but attachments are Drive files, opened and added with this keyring.
         keychain-access-groups:
           # This app's own group first, and it must stay first: the *default* access group — where
           # an item written without an explicit group lands — is the first entry in this list.

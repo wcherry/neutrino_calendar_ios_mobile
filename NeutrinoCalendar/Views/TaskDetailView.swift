@@ -24,8 +24,6 @@ struct TaskDetailView: View {
     /// The slot as it was when the screen opened, so Save only moves the event if it changed.
     @State private var original: Slot?
 
-    @State private var attachments: [TaskAttachment] = []
-    @State private var newNote = ""
     @State private var newReminder: ReminderEditorView.Mode?
 
     @State private var seeded = false
@@ -35,6 +33,7 @@ struct TaskDetailView: View {
     @State private var isSaving = false
     @State private var error: String?
     @State private var conflict: EditConflict?
+    @StateObject private var attachmentsPresenter = AttachmentsPresenter()
 
     /// An hour, the length a task gets when it is first put on the calendar, as on the web.
     private static let defaultSlot: TimeInterval = 60 * 60
@@ -57,6 +56,7 @@ struct TaskDetailView: View {
             }
         }
         .densityList()
+        .attachmentPresentations(attachmentsPresenter)
         .navigationTitle("Task")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -135,30 +135,7 @@ struct TaskDetailView: View {
             }
         }
 
-        Section {
-            ForEach(attachments) { attachment in
-                Group {
-                    if let note = attachment.note, attachment.fileId == nil {
-                        Label(note, systemImage: "note.text").textSelection(.enabled)
-                    } else {
-                        // Opening a Drive file means decrypting it on the device: Epic 14.
-                        Label(attachment.name ?? "Drive file", systemImage: "doc")
-                    }
-                }
-                .swipeActions {
-                    Button(role: .destructive) { Task { await delete(attachment, from: task) } } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                }
-            }
-            TextField("Add a note", text: $newNote)
-                .submitLabel(.done)
-                .onSubmit { Task { await addNote(to: task) } }
-        } header: {
-            Text("Attachments")
-        } footer: {
-            Text("Attaching a Drive file isn't available on iPhone yet.")
-        }
+        AttachmentsSection(owner: tasks.attachmentOwner(taskID: task.id), presenter: attachmentsPresenter)
     }
 
     /// Moving the start keeps the slot's length rather than inverting it, as on the web.
@@ -199,7 +176,6 @@ struct TaskDetailView: View {
         end = defaultStart.addingTimeInterval(Self.defaultSlot)
         onCalendar = task.eventId != nil
 
-        async let attachmentsLoad = tasks.attachments(for: task)
         if !reminders.hasLoaded { await reminders.reload() }
         if let event = try? await tasks.event(for: task) {
             allDay = event.allDay
@@ -213,7 +189,6 @@ struct TaskDetailView: View {
             }
             original = Slot(start: start, end: end, allDay: allDay)
         }
-        attachments = (try? await attachmentsLoad) ?? []
     }
 
     /// 09:00 on the due day, or the top of the next hour: the web's `defaultStart`.
@@ -258,28 +233,6 @@ struct TaskDetailView: View {
             dismiss()
         } catch let conflict as EditConflict {
             self.conflict = conflict
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    // MARK: - Attachments
-
-    private func addNote(to task: CalendarTask) async {
-        let note = newNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !note.isEmpty else { return }
-        do {
-            attachments.append(try await tasks.addNote(note, to: task))
-            newNote = ""
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    private func delete(_ attachment: TaskAttachment, from task: CalendarTask) async {
-        do {
-            try await tasks.deleteAttachment(attachment, from: task)
-            attachments.removeAll { $0.id == attachment.id }
         } catch {
             self.error = error.localizedDescription
         }
