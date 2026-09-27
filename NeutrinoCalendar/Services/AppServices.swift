@@ -20,7 +20,7 @@ final class AppServices {
     let sync: CalendarSync
     let attachmentFiles: AttachmentFiles
     let keyProvisioning: KeyProvisioningService
-    let spotlight: SpotlightIndexer
+    let surfaces: SystemSurfaces
 
     private init() {
         // Before anything else. Everything the shared package writes is namespaced `ncal.*`, and
@@ -34,7 +34,7 @@ final class AppServices {
         tasks = TasksService(client: client)
         attachmentFiles = AttachmentFiles(client: client)
         keyProvisioning = KeyProvisioningService(authService: auth)
-        spotlight = SpotlightIndexer(events: events, isSignedIn: { [weak auth] in auth?.isAuthenticated == true })
+        surfaces = SystemSurfaces(events: events, isSignedIn: { [weak auth] in auth?.isAuthenticated == true })
 
         // Reminder notifications and their actions. Registered during launch: a notification
         // action can be what launched the app.
@@ -52,7 +52,7 @@ final class AppServices {
             return auth.accessToken()
         })
         sync = CalendarSync(client: client, signals: signals, pending: PendingWrites(),
-                            events: events, reminders: reminders, tasks: tasks, spotlight: spotlight)
+                            events: events, reminders: reminders, tasks: tasks, surfaces: surfaces)
         sync.observe(network)
     }
 }

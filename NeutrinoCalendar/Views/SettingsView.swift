@@ -9,6 +9,7 @@ struct SettingsView: View {
     @EnvironmentObject var remindersService: RemindersService
     @AppStorage(ReminderNotifications.enabledKey) private var alertsEnabled = true
     @AppStorage(LayoutDensity.storageKey) private var compactLayout = false
+    @AppStorage(LiveActivities.enabledKey) private var liveActivitiesEnabled = true
     @EnvironmentObject var keyProvisioning: KeyProvisioningService
     @State private var encryptionFlow: EncryptionFlow?
     @State private var encryptionRevision = 0
@@ -39,6 +40,17 @@ struct SettingsView: View {
                 Task { await notifications.apply(remindersService.reminders) }
             }
             .task { await notifications.refreshAuthorization() }
+
+            Section {
+                Toggle("Live Activities", isOn: $liveActivitiesEnabled)
+            } header: {
+                Text("Lock Screen")
+            } footer: {
+                Text("Shows your next event on the Lock Screen and in the Dynamic Island, from an hour before it starts until it ends. It starts when Calendar is open in that hour.")
+            }
+            .onChange(of: liveActivitiesEnabled) { _ in
+                Task { await AppServices.shared.surfaces.redraw() }
+            }
 
             Section {
                 Picker("Week starts on", selection: $weekStart) {

@@ -65,6 +65,20 @@ struct NeutrinoCalendarApp: App {
                           let link = EventLink(string: id) else { return }
                     router.open(link)
                 }
+                // A widget or the Live Activity opens its event, or a day of the month widget.
+                .onOpenURL { url in
+                    switch WidgetLink(url: url) {
+                    case .event(let id)?:
+                        if let link = EventLink(string: id) { router.open(link) }
+                    case .day(let key)?:
+                        if let day = WidgetSnapshot.day(fromKey: key, calendar: eventsService.calendar) {
+                            router.tab = .calendar
+                            eventsService.select(day)
+                        }
+                    case nil:
+                        break
+                    }
+                }
         }
         .onChange(of: scenePhase) { phase in
             switch phase {
@@ -112,6 +126,9 @@ private struct RootContentView: View {
                 // Loads reminders at launch, not only when the Reminders tab opens: the
                 // notifications are planned from that list.
                 sync.start()
+            } else {
+                // A widget left from before a sign-out, or a reinstall, shows no one's calendar.
+                await AppServices.shared.surfaces.signOut()
             }
         }
         // Every change to the list re-plans the notifications. Only once the list has loaded:
@@ -132,7 +149,7 @@ private struct RootContentView: View {
                 // The next account must not be reminded of this one's reminders, or find its
                 // events in Spotlight.
                 Task { await notifications.removeAll() }
-                Task { await AppServices.shared.spotlight.removeAll() }
+                Task { await AppServices.shared.surfaces.signOut() }
             } else {
                 sync.start()
             }

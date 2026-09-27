@@ -28,6 +28,8 @@ targets:
         product: NeutrinoCrypto
       - package: NeutrinoShared
         product: NeutrinoUI
+      - target: NeutrinoCalendarWidgets
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.neutrino.calendar
@@ -51,6 +53,9 @@ targets:
           # would land in a container the other apps can read.
           - $(AppIdentifierPrefix)$(CFBundleIdentifier)
           - $(AppIdentifierPrefix)com.neutrino.shared
+        # App Group: the widgets' snapshot (WidgetSnapshot), and nothing else. Never tokens.
+        com.apple.security.application-groups:
+          - group.com.neutrino.calendar
         # No `applinks:` yet. `/open/event/<id>` has to be added to the apple-app-site-association
         # document in the Drive repository first; see agent_docs/road_map.md.
     info:
@@ -85,6 +90,50 @@ targets:
           - fetch
         BGTaskSchedulerPermittedIdentifiers:
           - com.neutrino.calendar.refresh
+        # The next event on the Lock Screen and in the Dynamic Island; see LiveActivities.swift.
+        NSSupportsLiveActivities: true
+        # What a tap on a widget or the Live Activity opens: neutrinocalendar://event/<link> or
+        # neutrinocalendar://day/<yyyy-MM-dd> (WidgetLink).
+        CFBundleURLTypes:
+          - CFBundleURLName: com.neutrino.calendar
+            CFBundleURLSchemes:
+              - neutrinocalendar
+
+  # Widgets and the Live Activity. No network and no Keychain: everything they show comes from
+  # the snapshot the app writes into the App Group. As in Drive's share extension, the few files
+  # both sides need are compiled into both rather than put in a framework: NeutrinoCalendar/Shared.
+  NeutrinoCalendarWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: NeutrinoCalendarWidgets
+      - path: NeutrinoCalendar/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.neutrino.calendar.widgets
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        # 16.2 for the Live Activity's stale date (see EventActivityAttributes). The app itself
+        # still runs on 16.0 and 16.1, without widgets.
+        IPHONEOS_DEPLOYMENT_TARGET: "16.2"
+        DEVELOPMENT_TEAM: "46KWJJ63FU"
+        CODE_SIGN_STYLE: Automatic
+    entitlements:
+      path: NeutrinoCalendarWidgets/NeutrinoCalendarWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.neutrino.calendar
+    info:
+      path: NeutrinoCalendarWidgets/Info.plist
+      properties:
+        CFBundleName: Calendar
+        CFBundleDisplayName: Calendar
+        # Must match the app's, or the upload is rejected; deploy_testflight.sh bumps both.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
   NeutrinoCalendarTests:
     type: bundle.unit-test

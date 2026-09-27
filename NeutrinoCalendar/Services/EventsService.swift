@@ -359,10 +359,18 @@ final class EventsService: ObservableObject {
         let now = now()
         let from = calendar.startOfDay(for: now)
         let to = calendar.date(byAdding: .day, value: days, to: from)!
-        let events = try await client.events(from: from, to: to)
-        let expanded = RecurrenceExpander.expand(events, from: from, to: to, calendar: calendar)
-        return UpNext.upcoming(expanded, now: now, calendar: calendar)
+        return UpNext.upcoming(try await occurrences(from: from, to: to), now: now, calendar: calendar)
     }
+
+    /// Every occurrence in `[from, to]`, expanded, whatever the Focus filter, straight from the
+    /// server rather than the months loaded.
+    func occurrences(from: Date, to: Date) async throws -> [EventOccurrence] {
+        let events = try await client.events(from: from, to: to)
+        return RecurrenceExpander.expand(events, from: from, to: to, calendar: calendar)
+    }
+
+    /// Now, as the service tells it; fixed in tests.
+    var currentDate: Date { now() }
 
     /// The event as the server has it now.
     func event(id: String) async throws -> CalendarEvent {
