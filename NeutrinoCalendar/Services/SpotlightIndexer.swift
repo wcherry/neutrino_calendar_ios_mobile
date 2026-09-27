@@ -6,60 +6,36 @@ import os.log
 /// Puts the coming weeks' events into Spotlight, so searching the phone for "dentist" finds the
 /// appointment, and tapping it opens the event here.
 ///
-/// Each event is indexed once, at its next occurrence, and the whole set is replaced on every
-/// run, so an event deleted or moved elsewhere leaves nothing stale behind. It runs when the
-/// calendar changes here or elsewhere (`CalendarSync.refresh`, `EventsService.generation`) and
-/// from background refresh. The index lives on the device only; iOS's Settings › Calendar ›
-/// Siri & Search is where a user turns it off.
+/// Each event is indexed once, at its next occurrence, and the whole set is replaced each time,
+/// so an event deleted or moved elsewhere leaves nothing stale behind. `SystemSurfaces` hands it
+/// what is coming up whenever the calendar changes. The index lives on the device only; iOS's
+/// Settings › Calendar › Siri & Search is where a user turns it off.
 @MainActor
 final class SpotlightIndexer {
     nonisolated static let domain = "com.neutrino.calendar.events"
     /// How far ahead is indexed. Further out is what the calendar itself is for.
     static let horizonDays = 30
 
-    private let events: EventsService
     private let index: CSSearchableIndex
-    /// Checked again after the fetch: a run under way at sign-out must not put the old account's
-    /// events back after `removeAll`.
-    private let isSignedIn: () -> Bool
-    private var isRunning = false
-    private var runAgain = false
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NeutrinoCalendar",
                                 category: "SpotlightIndexer")
 
-    init(events: EventsService, index: CSSearchableIndex = .default(), isSignedIn: @escaping () -> Bool) {
-        self.events = events
+    init(index: CSSearchableIndex = .default()) {
         self.index = index
-        self.isSignedIn = isSignedIn
     }
 
-    /// Replaces what is indexed with what is coming up now. A call made while one runs runs
-    /// again after it, so a change that lands mid-run is not missed. A failed fetch leaves the
-    /// index as it was: stale results beat none.
-    func reindex() async {
+    /// Replaces what is indexed with `upcoming`.
+    func index(_ upcoming: [EventOccurrence], calendar: Calendar) async {
         guard CSSearchableIndex.isIndexingAvailable() else { return }
-        if isRunning {
-            runAgain = true
-            return
+        let items = Self.items(for: upcoming, calendar: calendar)
+        do {
+            try await index.deleteSearchableItems(withDomainIdentifiers: [Self.domain])
+            try await index.indexSearchableItems(items)
+            logger.debug("indexed \(items.count) event(s)")
+        } catch {
+            logger.error("index failed: \(error, privacy: .public)")
         }
-        isRunning = true
-        defer { isRunning = false }
-        repeat {
-            runAgain = false
-            do {
-                guard isSignedIn() else { return }
-                let upcoming = try await events.upcoming(days: Self.horizonDays)
-                guard isSignedIn() else { return }
-                let items = Self.items(for: upcoming, calendar: events.calendar)
-                try await index.deleteSearchableItems(withDomainIdentifiers: [Self.domain])
-                try await index.indexSearchableItems(items)
-                logger.debug("indexed \(items.count) event(s)")
-            } catch {
-                logger.error("reindex failed: \(error, privacy: .public)")
-                return
-            }
-        } while runAgain
     }
 
     /// For sign-out: the next account must not find this one's events.

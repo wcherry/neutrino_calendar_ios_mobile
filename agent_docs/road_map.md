@@ -413,13 +413,23 @@ Goal: parity with the web sidebars.
 
 Goal: Calendar shows up everywhere iOS shows a calendar.
 
-### ⬜ Epic 15 — Widgets & Live Activities
+### ✅ Epic 15 — Widgets & Live Activities
 
-* ⬜ Home Screen widgets: Up Next, Today, Month
-* ⬜ Lock Screen widgets
-* ⬜ Live Activity for an event in progress, and a countdown to the next one
-* ⬜ An App Group snapshot for widgets. It must contain the rendered next-N events only, never
-  tokens
+* ✅ Home Screen widgets: Up Next (small, medium), Today (medium, large), Month (small,
+  medium). Tapping an event opens it, and tapping a day in the month opens that day. The
+  widgets follow the Focus filter and the week start
+* ✅ Lock Screen widgets: Up Next as rectangular, inline and circular
+* ✅ Live Activity for an event in progress, and a countdown to the next one: from an hour
+  before the next timed event until it ends, on the Lock Screen and in the Dynamic Island.
+  With no push, iOS lets only the app start it, and only while open; the app updates or ends
+  it whenever it runs, background refresh included. In between, a stale date carries it from
+  countdown to progress. Settings › Lock Screen › Live Activities switches it off
+* ✅ An App Group snapshot for widgets (`group.com.neutrino.calendar`): the rendered
+  occurrences from today for 14 days, the busy days of this month and next, and the week
+  start. It holds titles, times and places, and never notes, attendees or tokens. It is
+  rewritten only when something changed, and reset on sign-out. One fetch
+  (`SystemSurfaces`) feeds the widgets, Spotlight and the Live Activity
+* The widget extension needs iOS 16.2 (the app still runs on 16.0)
 
 ⸻
 
