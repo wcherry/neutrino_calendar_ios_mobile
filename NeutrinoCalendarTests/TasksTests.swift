@@ -82,10 +82,12 @@ final class TasksServiceTests: XCTestCase {
     }
 
     private func task(_ id: String, _ title: String = "Task", done: Bool = false, position: Int = 0,
-                      notes: String? = nil, due: String? = nil, event: String? = nil) -> String {
+                      notes: String? = nil, due: String? = nil, event: String? = nil,
+                      tags: [String] = []) -> String {
         func q(_ s: String?) -> String { s.map { "\"\($0)\"" } ?? "null" }
         return """
         {"id":"\(id)","title":"\(title)","notes":\(q(notes)),"done":\(done),"dueDate":\(q(due)),
+         "tags":[\(tags.map { q($0) }.joined(separator: ","))],
          "position":\(position),"listId":null,"eventId":\(q(event)),
          "createdAt":"2026-09-01T00:00:00Z","updatedAt":"2026-09-01T00:00:00Z"}
         """
@@ -248,5 +250,59 @@ final class TasksServiceTests: XCTestCase {
         XCTAssertEqual(decoded.estimateMinutes, 30)
         XCTAssertEqual(decoded.location, "Shed")
     }
+
+    func testAllTagsAreMostUsedFirst() async {
+        await load([task("a", tags: ["home", "work"]), task("b", tags: ["work"]), task("c", tags: ["errands"])])
+        XCTAssertEqual(service.allTags, ["work", "errands", "home"])
+    }
+
+    func testEditingTagsSendsTheWholeSetNormalised() async throws {
+        await load([task("a", "Fans", tags: ["home"])])
+        let original = try XCTUnwrap(service.task(id: "a"))
+        MockURLProtocol.respond(status: 200, body: task("a", "Fans", tags: ["home", "new"]))
+        try await service.update(original, title: "Fans", notes: "", dueDay: nil, tags: ["home", "#New"],
+                                 overwrite: true)
+        XCTAssertEqual(MockURLProtocol.lastJSON?.keys.sorted(), ["tags"])
+        XCTAssertEqual(MockURLProtocol.lastJSON?["tags"] as? [String], ["home", "new"])
+        XCTAssertEqual(service.task(id: "a")?.tags, ["home", "new"])
+    }
+
+    func testRemovingEveryTagSendsAnEmptySet() async throws {
+        await load([task("a", "Fans", tags: ["home"])])
+        let original = try XCTUnwrap(service.task(id: "a"))
+        MockURLProtocol.respond(status: 200, body: task("a", "Fans"))
+        try await service.update(original, title: "Fans", notes: "", dueDay: nil, tags: [], overwrite: true)
+        XCTAssertEqual(MockURLProtocol.lastJSON?["tags"] as? [String], [])
+    }
+
+    func testTheSameTagsInAnotherOrderAreNotAChange() async throws {
+        await load([task("a", "Fans", tags: ["home", "work"])])
+        let original = try XCTUnwrap(service.task(id: "a"))
+        MockURLProtocol.reset()
+        try await service.update(original, title: "Fans", notes: "", dueDay: nil, tags: ["work", "HOME"])
+        XCTAssertNil(MockURLProtocol.lastRequest)
+    }
 }
 
+// MARK: - Tags
+
+final class TaskTagsTests: XCTestCase {
+
+    func testSplitMatchesTheWebsTagField() {
+        XCTAssertEqual(TaskTags.split("#Errands, home  ##work home"), ["errands", "home", "work"])
+        XCTAssertEqual(TaskTags.split("  "), [])
+    }
+
+    func testNormalizeMatchesTheServer() {
+        XCTAssertEqual(TaskTags.normalize(["Work", "#home", "work", " "]), ["home", "work"])
+    }
+
+    func testSuggestionsPutPrefixMatchesFirstAndSkipChosenOnes() {
+        let known = ["homework", "work", "errands", "home"]
+        XCTAssertEqual(TaskTags.suggestions(for: "ho", in: known, excluding: []), ["homework", "home"])
+        XCTAssertEqual(TaskTags.suggestions(for: "#WO", in: known, excluding: []), ["work", "homework"])
+        XCTAssertEqual(TaskTags.suggestions(for: "", in: known, excluding: ["work"]),
+                       ["homework", "errands", "home"])
+        XCTAssertEqual(TaskTags.suggestions(for: "zzz", in: known, excluding: []), [])
+    }
+}

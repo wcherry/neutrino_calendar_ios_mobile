@@ -29,6 +29,9 @@ final class TasksService: ObservableObject {
 
     func task(id: String) -> CalendarTask? { tasks.first { $0.id == id } }
 
+    /// Every tag in use, most used first: what the task editor offers as the user types.
+    var allTags: [String] { TaskTags.all(in: tasks) }
+
     // MARK: - Loading
 
     func reload() async {
@@ -93,13 +96,15 @@ final class TasksService: ObservableObject {
     }
 
     /// Saves the task row. Only what changed is sent, and a field emptied is sent as a clear.
+    /// `tags` is the whole new tag set; nil leaves the tags alone.
     ///
     /// Unless `overwrite`, the save stops with `EditConflict` when the task was deleted, or one of
     /// the same fields changed, somewhere else since `task` was read. Offline, it is queued.
     @discardableResult
-    func update(_ task: CalendarTask, title: String, notes: String, dueDay: Date?,
+    func update(_ task: CalendarTask, title: String, notes: String, dueDay: Date?, tags: [String]? = nil,
                 calendar: Calendar = .current, overwrite: Bool = false) async throws -> CalendarTask {
-        let request = Self.request(from: task, title: title, notes: notes, dueDay: dueDay, calendar: calendar)
+        let request = Self.request(from: task, title: title, notes: notes, dueDay: dueDay, tags: tags,
+                                   calendar: calendar)
         guard request != UpdateTaskRequest() else { return task }
         do {
             if !overwrite {
@@ -109,7 +114,8 @@ final class TasksService: ObservableObject {
                     throw EditConflict.deletedElsewhere
                 }
                 let theirs = Self.request(from: task, title: current.title, notes: current.notes ?? "",
-                                          dueDay: current.dueDay(in: calendar), calendar: calendar)
+                                          dueDay: current.dueDay(in: calendar),
+                                          tags: tags == nil ? nil : current.tags, calendar: calendar)
                 let clashes = EditConflict.clashes(mine: request, theirs: theirs)
                 if !clashes.isEmpty { throw EditConflict.changedElsewhere(clashes) }
             }
@@ -121,7 +127,7 @@ final class TasksService: ObservableObject {
             let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
             let local = task.with(title: title, notes: .some(trimmedNotes.isEmpty ? nil : trimmedNotes),
                                   dueDate: .some(dueDay.flatMap { ServerDate.parse(CalendarTask.dueDateValue(for: $0, in: calendar)) }),
-                                  dueHasTime: request.dueHasTime)
+                                  dueHasTime: request.dueHasTime, tags: request.tags)
             replace(local)
             return local
         }
@@ -130,7 +136,7 @@ final class TasksService: ObservableObject {
     /// The fields that differ between `task` and the values given: an edit's request, or, given
     /// the server's current values, what was changed elsewhere.
     static func request(from task: CalendarTask, title: String, notes: String, dueDay: Date?,
-                        calendar: Calendar) -> UpdateTaskRequest {
+                        tags: [String]? = nil, calendar: Calendar) -> UpdateTaskRequest {
         var request = UpdateTaskRequest()
         if title != task.title { request.title = title }
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -143,6 +149,10 @@ final class TasksService: ObservableObject {
             request.dueDate = newDue.map(Patch.set) ?? .clear
             // A day picked here is a day: a due time set by Smart Add goes with the old date.
             if newDue != nil && task.dueHasTime { request.dueHasTime = false }
+        }
+        if let tags {
+            let newTags = TaskTags.normalize(tags)
+            if newTags != TaskTags.normalize(task.tags) { request.tags = newTags }
         }
         return request
     }

@@ -79,10 +79,10 @@ struct CalendarTask: Decodable, Identifiable, Hashable {
 
     /// This task with some fields changed: what an edit made offline shows until the server has it.
     func with(title: String? = nil, notes: String?? = nil, done: Bool? = nil,
-              dueDate: Date?? = nil, dueHasTime: Bool? = nil) -> CalendarTask {
+              dueDate: Date?? = nil, dueHasTime: Bool? = nil, tags: [String]? = nil) -> CalendarTask {
         CalendarTask(id: id, title: title ?? self.title, notes: notes ?? self.notes, done: done ?? self.done,
                      dueDate: dueDate ?? self.dueDate, position: position, eventId: eventId,
-                     dueHasTime: dueHasTime ?? self.dueHasTime, priority: priority, tags: tags,
+                     dueHasTime: dueHasTime ?? self.dueHasTime, priority: priority, tags: tags ?? self.tags,
                      recurrenceRule: recurrenceRule, repeatAfterCompletion: repeatAfterCompletion,
                      estimateMinutes: estimateMinutes, location: location)
     }
@@ -109,6 +109,43 @@ struct CalendarTask: Decodable, Identifiable, Hashable {
     static func dueDateValue(for day: Date, in calendar: Calendar = .current) -> String {
         let d = calendar.dateComponents([.year, .month, .day], from: day)
         return String(format: "%04d-%02d-%02dT00:00:00Z", d.year!, d.month!, d.day!)
+    }
+}
+
+// MARK: - Tags
+
+/// Tag rules shared by the task editor and the requests it sends.
+enum TaskTags {
+    /// What the server stores: trimmed, lowercase, without a leading `#`, de-duplicated and
+    /// sorted (`normalize_tags` in `neutrino/src/calendar/tasks/service.rs`). Whitespace and
+    /// commas separate tags, as in the web's tag field, so "#errands home" is two.
+    static func normalize(_ tags: [String]) -> [String] {
+        Array(Set(tags.flatMap(split))).sorted()
+    }
+
+    /// "#Errands, home" → ["errands", "home"], in the order typed.
+    static func split(_ text: String) -> [String] {
+        var seen = Set<String>()
+        return text.split(whereSeparator: { $0.isWhitespace || $0 == "," })
+            .map { $0.drop(while: { $0 == "#" }).lowercased() }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    /// Every tag on `tasks`, most used first, then alphabetically.
+    static func all(in tasks: [CalendarTask]) -> [String] {
+        var counts: [String: Int] = [:]
+        for tag in tasks.flatMap(\.tags) { counts[tag, default: 0] += 1 }
+        return counts.keys.sorted { (counts[$0]!, $1) > (counts[$1]!, $0) }
+    }
+
+    /// The tags in `known` worth offering for `query`, leaving out those already `chosen`: those
+    /// starting with it first, then those containing it, each keeping `known`'s order. An empty
+    /// query offers everything.
+    static func suggestions(for query: String, in known: [String], excluding chosen: [String]) -> [String] {
+        let q = split(query).last ?? ""
+        let open = known.filter { !chosen.contains($0) }
+        guard !q.isEmpty else { return open }
+        return open.filter { $0.hasPrefix(q) } + open.filter { !$0.hasPrefix(q) && $0.contains(q) }
     }
 }
 
@@ -155,8 +192,10 @@ struct UpdateTaskRequest: Encodable, Equatable {
     /// The zone a repeating task is stepped in when this completes it, so a 9am task comes round
     /// at 9am after a DST change. The server reads it only then.
     var timezone: String?
+    /// The task's whole tag set, replacing the old one; absent leaves the tags alone.
+    var tags: [String]?
 
-    private enum CodingKeys: String, CodingKey { case title, notes, done, dueDate, dueHasTime, timezone }
+    private enum CodingKeys: String, CodingKey { case title, notes, done, dueDate, dueHasTime, timezone, tags }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -164,6 +203,7 @@ struct UpdateTaskRequest: Encodable, Equatable {
         try c.encodeIfPresent(done, forKey: .done)
         try c.encodeIfPresent(dueHasTime, forKey: .dueHasTime)
         try c.encodeIfPresent(timezone, forKey: .timezone)
+        try c.encodeIfPresent(tags, forKey: .tags)
         for (patch, key) in [(notes, CodingKeys.notes), (dueDate, CodingKeys.dueDate)] {
             switch patch {
             case .keep:           break
