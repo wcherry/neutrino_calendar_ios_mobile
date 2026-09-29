@@ -16,6 +16,8 @@ struct TaskDetailView: View {
     @State private var notes = ""
     @State private var hasDue = false
     @State private var due = Date()
+    @State private var tags: [String] = []
+    @State private var tagDraft = ""
 
     @State private var onCalendar = false
     @State private var allDay = false
@@ -94,6 +96,10 @@ struct TaskDetailView: View {
             }
         }
 
+        Section("Tags") {
+            TagField(tags: $tags, draft: $tagDraft, known: tasks.allTags)
+        }
+
         Section {
             Toggle("Add to calendar", isOn: $onCalendar.animation())
             if onCalendar {
@@ -167,6 +173,8 @@ struct TaskDetailView: View {
         base = task
         title = task.title
         notes = task.notes ?? ""
+        tags = task.tags
+        tagDraft = ""
         if let day = task.dueDay() {
             hasDue = true
             due = day
@@ -216,7 +224,9 @@ struct TaskDetailView: View {
             // The row first: the event carries the task's title, and the server reads it from
             // the stored row when scheduling.
             let saved = try await tasks.update(task, title: title.trimmingCharacters(in: .whitespaces),
-                                               notes: notes, dueDay: hasDue ? due : nil, overwrite: overwrite)
+                                               notes: notes, dueDay: hasDue ? due : nil,
+                                               // A tag typed but not yet added is still meant.
+                                               tags: tags + TaskTags.split(tagDraft), overwrite: overwrite)
             let slot = Slot(start: start, end: end, allDay: allDay)
             var calendarChanged = false
             if onCalendar, saved.eventId == nil || slot != original {
