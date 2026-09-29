@@ -26,7 +26,6 @@ struct EventOccurrence: Identifiable, Hashable {
 ///   event's own `timezone` is ignored.
 /// - MONTHLY and YEARLY overflow instead of clamping: Jan 31 → Mar 3, Feb 29 → Mar 1, and every
 ///   later repetition keeps the drifted day.
-/// - COUNT counts FREQ steps, not occurrences, so `FREQ=WEEKLY;BYDAY=TU,TH;COUNT=2` gives four.
 /// - BYDAY applies to WEEKLY only, and reaches forward from each step's date, never back.
 /// - A date-only UNTIL (`UNTIL=20260930`) is unreadable to the web and so is ignored.
 /// - A rule that does not parse (an `RRULE:` prefix, an unknown FREQ) shows the event once, as
@@ -61,18 +60,25 @@ enum RecurrenceExpander {
         var result: [EventOccurrence] = []
         var current = dtStart
         var steps = 0
+        // COUNT counts occurrences, as RFC 5545 has it — those before `from` too — so "after 10
+        // times" on an every-weekday rule is ten days, not ten weeks.
+        var emitted = 0
 
         while current <= to && steps < maxSteps {
-            if let count = rule.count, steps >= count { break }
+            if let count = rule.count, emitted >= count { break }
             if let until = rule.until, current > until { break }
 
             let weekday = calendar.jsDay(of: current)
-            let targets = rule.freq == .weekly ? (rule.byDay ?? [weekday]) : [weekday]
+            // In the order they fall in the step, so COUNT stops at the right one.
+            let targets = (rule.freq == .weekly ? (rule.byDay ?? [weekday]) : [weekday])
+                .sorted { ($0 - weekday + 7) % 7 < ($1 - weekday + 7) % 7 }
             for target in targets {
                 let occurrence = calendar.shifting(current, .day, by: ((target - weekday) + 7) % 7)
                 if occurrence < dtStart { continue }
-                if occurrence > to { continue }
                 if let until = rule.until, occurrence > until { continue }
+                if let count = rule.count, emitted >= count { break }
+                emitted += 1
+                if occurrence > to { continue }
                 if occurrence >= from {
                     result.append(EventOccurrence(event: event, start: occurrence,
                                                   end: occurrence.addingTimeInterval(duration)))

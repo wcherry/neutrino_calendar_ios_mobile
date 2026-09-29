@@ -172,8 +172,11 @@ recurrence code.
 **Where both clients depart from RFC 5545.** Kept on purpose for now, since the two clients have
 to agree, and each one is a web bug to fix in both places at once:
 
-* ⬜ COUNT counts FREQ steps, not occurrences: `FREQ=WEEKLY;BYDAY=TU,TH;COUNT=2` shows four
-* ⬜ A date-only UNTIL (`UNTIL=20260930`) is ignored, so the event repeats forever
+* ✅ COUNT counts occurrences, as RFC 5545 has it, in both clients (it used to count FREQ steps,
+  so `FREQ=WEEKLY;BYDAY=TU,TH;COUNT=2` showed four). Fixed alongside the event form's "after N
+  times"
+* ⬜ A date-only UNTIL (`UNTIL=20260930`) is ignored, so the event repeats forever. Neither form
+  writes one (`RepeatRule` always writes a UTC date-time), and editing such a rule's end rewrites it
 * ⬜ MONTHLY/YEARLY overflow instead of skipping: Jan 31 → Mar 3, and every later month keeps
   the 3rd
 * ⬜ A rule with an `RRULE:` prefix doesn't parse, and the event shows once
@@ -196,6 +199,9 @@ Features
 * ✅ Edit and delete event, from its detail screen. A one-off event's screen follows the edit;
   a repeating one's closes, since the series has moved
 * ✅ Repeat picker that writes the RRULEs the web writes, and keeps one it has no choice for
+* ✅ Repeat every N days/weeks/months/years, ending never, on a date, or after N times, on iOS
+  and the web alike: `RepeatRule` is a port of the web's `repeatRule.ts`, and both are held to
+  `repeatRuleFixtures.json` (`scripts/sync_repeat_rule_vectors.sh`)
 * ✅ Time-zone picker. Times are entered in the chosen zone, and picking a zone keeps the clock
   times (10:00 stays 10:00, now in New York), as the iPhone's Calendar does
 * ✅ Attendees (an email list; stored only, see Epic 19)
