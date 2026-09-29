@@ -34,6 +34,8 @@ struct CalendarHomeView: View {
             }
             .task { await openRequested() }
             .onChange(of: router.openEvent) { _ in Task { await openRequested() } }
+            .onAppear(perform: showImported)
+            .onChange(of: router.importedEvent) { _ in showImported() }
     }
 
     /// Opens the event a Spotlight result or a Shortcut asked for, on the day it falls on. It is
@@ -50,6 +52,14 @@ struct CalendarHomeView: View {
         } catch {
             events.error = error.localizedDescription
         }
+    }
+
+    /// Opens the new-event form on an event read from a shared `.ics` file, on the day it starts.
+    private func showImported() {
+        guard let draft = router.importedEvent else { return }
+        router.importedEvent = nil
+        events.select(draft.start)
+        creating = .imported(draft)
     }
 
     private struct LoadKey: Hashable {
