@@ -115,7 +115,32 @@ struct EventDraft: Equatable {
         let fields: Set<Calendar.Component> = [.year, .month, .day, .hour, .minute, .second]
         start = to.date(from: from.dateComponents(fields, from: start)) ?? start
         end = to.date(from: from.dateComponents(fields, from: end)) ?? end
-        timeZone = zone
+        reencodingRepeatEnd { $0.timeZone = zone }
+    }
+
+    /// Switches between all-day and timed, keeping a repeat's end on the same day.
+    mutating func setAllDay(_ allDay: Bool) {
+        reencodingRepeatEnd { $0.allDay = allDay }
+    }
+
+    // MARK: - Repeat
+
+    /// How the rule's end date is written for this event; see RepeatRule.
+    var repeatContext: RepeatRule.Context { .init(allDay: allDay, timeZone: timeZone) }
+
+    /// The rule as the form edits it: nil when the event doesn't repeat, or when its rule is one
+    /// the form can't represent (`repeatOption` is then `.custom`, and saved as it was).
+    var repeatRule: RepeatRule? {
+        get { repeatOption.rule.flatMap { RepeatRule(parsing: $0, context: repeatContext) } }
+        set { repeatOption = RepeatOption(rule: newValue?.rule(context: repeatContext)) }
+    }
+
+    /// An end date is written as an instant that depends on all-day and the zone, so a change to
+    /// either writes it again for the same day. A rule without one is left exactly as it was.
+    private mutating func reencodingRepeatEnd(_ change: (inout EventDraft) -> Void) {
+        guard let rule = repeatRule, case .on = rule.end else { return change(&self) }
+        change(&self)
+        repeatRule = rule
     }
 
     // MARK: - Validation
@@ -126,6 +151,9 @@ struct EventDraft: Equatable {
     var problem: String? {
         if trimmedTitle.isEmpty { return "An event needs a title." }
         if allDay ? day(end) < day(start) : end < start { return "The event ends before it starts." }
+        if case .on(let last)? = repeatRule?.end, last.string < day(start) {
+            return "The event stops repeating before it starts."
+        }
         return nil
     }
 

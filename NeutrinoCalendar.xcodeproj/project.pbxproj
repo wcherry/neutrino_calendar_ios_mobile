@@ -28,6 +28,8 @@
 		3AE4B0D60924110337847720 /* RecurrenceExpander.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1C7349A57E84E17BFF7AC8 /* RecurrenceExpander.swift */; };
 		3B61A13A72495542504CDF21 /* BugReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C46C51EF8C7099A547126BDE /* BugReportTests.swift */; };
 		3FDB978099A4EC9B851279BC /* CalendarIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEDB30A7E3038DDBCA666C5E /* CalendarIntents.swift */; };
+		4A14BDCC1C8232C9E7D8B9A9 /* RepeatRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB8368FF9E5C3E1B6C18953E /* RepeatRule.swift */; };
+		4F5CAB2E0BF31BFCD26FDF90 /* RepeatRuleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC53C8D96F1813AFE8FEB2FE /* RepeatRuleTests.swift */; };
 		59F0E0A1E180D071AD253834 /* NeutrinoCalendarWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 02322BB10E5B16F5162B5394 /* NeutrinoCalendarWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5E8A6A7DD4A0886B6589F306 /* UpNextWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16C5528EC06B0AC3DC6BE2F /* UpNextWidget.swift */; };
 		5EBF4EA6CF088726E7A41451 /* EventsServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A281BD4B657497CE07EBFAC /* EventsServiceTests.swift */; };
@@ -87,6 +89,7 @@
 		D297666923D9531EE9864452 /* CalendarEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D404E4B379B9B1C390678844 /* CalendarEvent.swift */; };
 		D41295B143A6093573A42A45 /* MonthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0456C1D1782797E93A7EA0 /* MonthView.swift */; };
 		D68AF1D61B7C7F02C156FCD1 /* TaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E612AF342FB4C7B8BF283A61 /* TaskDetailView.swift */; };
+		D7A51DAF8EC629FD78DE2DDA /* repeat_rule_vectors.json in Resources */ = {isa = PBXBuildFile; fileRef = 3FD504B7D89260FD58455A3B /* repeat_rule_vectors.json */; };
 		DAA72EC4AC47B5F42793AC7B /* AgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B493F60BF139879634CD1FE /* AgendaView.swift */; };
 		DD50BED57084E2E59D26442D /* LayoutDensityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496AD4C372FDBCEA42A1058D /* LayoutDensityTests.swift */; };
 		E4FDA88F5D58F2F1D48F6B77 /* ReminderNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99CB2BCFAF755BBC1FDE6531 /* ReminderNotifications.swift */; };
@@ -156,6 +159,7 @@
 		2F66D1C187A796E5CBEC8CFC /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		3D505F196F67BEC5478E0AE9 /* CalendarWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarWidgets.swift; sourceTree = "<group>"; };
 		3D9355601517003581DBE48B /* AttachmentFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentFiles.swift; sourceTree = "<group>"; };
+		3FD504B7D89260FD58455A3B /* repeat_rule_vectors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = repeat_rule_vectors.json; sourceTree = "<group>"; };
 		3FE2BCF5C7C8975748E25003 /* TaskSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSpeech.swift; sourceTree = "<group>"; };
 		402CB7B696143E158856C7A5 /* EventsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsService.swift; sourceTree = "<group>"; };
 		43C00B52838A7AFAF0C5E886 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -195,6 +199,7 @@
 		9F107C6753FB215BC748436F /* NeutrinoCalendarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeutrinoCalendarApp.swift; sourceTree = "<group>"; };
 		A16C5528EC06B0AC3DC6BE2F /* UpNextWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpNextWidget.swift; sourceTree = "<group>"; };
 		A3B91E456C3DFFC6A983EFB7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		AB8368FF9E5C3E1B6C18953E /* RepeatRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatRule.swift; sourceTree = "<group>"; };
 		ACFDF4594D21CDFB2F00656B /* SmartAddTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartAddTests.swift; sourceTree = "<group>"; };
 		AD07754105D0A9CB9E89921D /* SmartAdd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartAdd.swift; sourceTree = "<group>"; };
 		AEDB30A7E3038DDBCA666C5E /* CalendarIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarIntents.swift; sourceTree = "<group>"; };
@@ -215,6 +220,7 @@
 		D89A3DFB69E200B10100334B /* CalendarHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarHomeView.swift; sourceTree = "<group>"; };
 		D9C8FFD7290022D218FBAF9C /* DriveFilePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveFilePickerView.swift; sourceTree = "<group>"; };
 		DA0456C1D1782797E93A7EA0 /* MonthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthView.swift; sourceTree = "<group>"; };
+		DC53C8D96F1813AFE8FEB2FE /* RepeatRuleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatRuleTests.swift; sourceTree = "<group>"; };
 		DD3F15D5B2D43D625711213B /* SpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIndexer.swift; sourceTree = "<group>"; };
 		E50132B32E15DE6E105910CB /* PendingWrites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingWrites.swift; sourceTree = "<group>"; };
 		E612AF342FB4C7B8BF283A61 /* TaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDetailView.swift; sourceTree = "<group>"; };
@@ -277,6 +283,7 @@
 			isa = PBXGroup;
 			children = (
 				248A092CAEDBF458C048DFB9 /* recurrence_vectors.json */,
+				3FD504B7D89260FD58455A3B /* repeat_rule_vectors.json */,
 				FCB92F8071B9266B8D136244 /* smart_add_vectors.json */,
 			);
 			path = Fixtures;
@@ -339,6 +346,7 @@
 				7874794D6B82E34A1C395BB8 /* NotificationPlan.swift */,
 				1C1C7349A57E84E17BFF7AC8 /* RecurrenceExpander.swift */,
 				ECD9C02C8864B4B10473B631 /* Reminder.swift */,
+				AB8368FF9E5C3E1B6C18953E /* RepeatRule.swift */,
 				AD07754105D0A9CB9E89921D /* SmartAdd.swift */,
 				AF7F6DFA37C843A7509D78CA /* SourceFilter.swift */,
 				3FE2BCF5C7C8975748E25003 /* TaskSpeech.swift */,
@@ -362,6 +370,7 @@
 				86788AFAA2E18F0B6099FD11 /* RecurrenceRuleTests.swift */,
 				B09F49EEF828DDB98D349D7E /* RecurrenceVectorTests.swift */,
 				915FD92FC8610DB35F3A8B21 /* RemindersTests.swift */,
+				DC53C8D96F1813AFE8FEB2FE /* RepeatRuleTests.swift */,
 				2BDBE39A09E5AF86D54C97C1 /* SiriSpotlightTests.swift */,
 				ACFDF4594D21CDFB2F00656B /* SmartAddTests.swift */,
 				074A09A43272A1BD55377443 /* SyncTests.swift */,
@@ -556,6 +565,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9FF05423B33C66F617262BFE /* recurrence_vectors.json in Resources */,
+				D7A51DAF8EC629FD78DE2DDA /* repeat_rule_vectors.json in Resources */,
 				CC5E7C15E44BB0F75D730D6A /* smart_add_vectors.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -608,6 +618,7 @@
 				E4FDA88F5D58F2F1D48F6B77 /* ReminderNotifications.swift in Sources */,
 				BC5706B07A013E0706F12E5F /* RemindersService.swift in Sources */,
 				F6EA0529863731CFC62E1A4E /* RemindersView.swift in Sources */,
+				4A14BDCC1C8232C9E7D8B9A9 /* RepeatRule.swift in Sources */,
 				16C755BEBBF485E02AC11BBA /* ReportBugButton.swift in Sources */,
 				240A245C238F2E043B095B2B /* SettingsView.swift in Sources */,
 				A81C3F8A5773B80E7E9477E5 /* SmartAdd.swift in Sources */,
@@ -643,6 +654,7 @@
 				7FD9A1735D851340830F7490 /* RecurrenceRuleTests.swift in Sources */,
 				71D4D91C3E07AF4C80CC3113 /* RecurrenceVectorTests.swift in Sources */,
 				765A7E7BAAF9CE6403CFA4F3 /* RemindersTests.swift in Sources */,
+				4F5CAB2E0BF31BFCD26FDF90 /* RepeatRuleTests.swift in Sources */,
 				694CA58C6516EF954B146BF4 /* SiriSpotlightTests.swift in Sources */,
 				784A3DDD5D2FC65E8E455585 /* SmartAddTests.swift in Sources */,
 				065AD441B797968E81DA9956 /* SyncTests.swift in Sources */,

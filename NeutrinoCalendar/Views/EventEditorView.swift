@@ -58,7 +58,8 @@ struct EventEditorView: View {
                 }
 
                 Section {
-                    Toggle("All day", isOn: $draft.allDay.animation())
+                    Toggle("All day", isOn: Binding(get: { draft.allDay },
+                                                    set: { on in withAnimation { draft.setAllDay(on) } }))
                     DatePicker("Starts", selection: startBinding,
                                displayedComponents: draft.allDay ? .date : [.date, .hourAndMinute])
                     DatePicker("Ends", selection: $draft.end, in: draft.start...,
@@ -76,8 +77,33 @@ struct EventEditorView: View {
                 .environment(\.timeZone, draft.timeZone)
 
                 Section {
-                    Picker("Repeat", selection: $draft.repeatOption) {
+                    Picker("Repeat", selection: presetBinding) {
                         ForEach(repeatChoices) { Text($0.label).tag($0) }
+                    }
+                    if let rule = draft.repeatRule {
+                        Stepper(value: Binding(get: { rule.interval },
+                                               set: { draft.repeatRule?.interval = $0 }),
+                                in: 1...RepeatRule.maxNumber) {
+                            Text("Every \(rule.interval) \(rule.frequency.unit(rule.interval))")
+                        }
+                        Picker("End Repeat", selection: endKindBinding) {
+                            ForEach(EndKind.allCases) { Text($0.label).tag($0) }
+                        }
+                        switch rule.end {
+                        case .never:
+                            EmptyView()
+                        case .on:
+                            DatePicker("End Date", selection: endDateBinding,
+                                       in: RepeatRule.Day(draft.start, in: draft.timeZone).date(in: draft.timeZone)...,
+                                       displayedComponents: .date)
+                                .environment(\.timeZone, draft.timeZone)
+                        case .after(let count):
+                            Stepper(value: Binding(get: { count },
+                                                   set: { draft.repeatRule?.end = .after($0) }),
+                                    in: 1...RepeatRule.maxNumber) {
+                                Text("After \(count) \(count == 1 ? "time" : "times")")
+                            }
+                        }
                     }
                 } footer: {
                     if existing?.recurrenceRule != nil {
@@ -147,11 +173,64 @@ struct EventEditorView: View {
         existing?.recurrenceRule != nil ? "Delete All Occurrences" : "Delete Event"
     }
 
-    /// The standard choices, plus the event's own rule when it is none of them, so it is kept.
+    /// The standard choices, plus the event's own rule when the form can't show it, so it is kept.
     private var repeatChoices: [RepeatOption] {
         var choices = RepeatOption.standard
-        if case .custom = original.repeatOption { choices.append(original.repeatOption) }
+        if case .custom = original.repeatOption, original.repeatRule == nil { choices.append(original.repeatOption) }
         return choices
+    }
+
+    /// The rule's choice, or the stored rule the form can't show. Picking another keeps the
+    /// interval and end; see RepeatRule.with.
+    private var presetBinding: Binding<RepeatOption> {
+        Binding(get: { draft.repeatRule?.preset ?? draft.repeatOption }, set: { choice in
+            if case .custom = choice {
+                draft.repeatOption = choice
+            } else {
+                draft.repeatRule = RepeatRule.with(choice, from: draft.repeatRule)
+            }
+        })
+    }
+
+    enum EndKind: String, CaseIterable, Identifiable {
+        case never, on, after
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .never: return "Never"
+            case .on:    return "On Date"
+            case .after: return "After"
+            }
+        }
+    }
+
+    private var endKindBinding: Binding<EndKind> {
+        Binding(get: {
+            switch draft.repeatRule?.end {
+            case .on?:    return .on
+            case .after?: return .after
+            default:      return .never
+            }
+        }, set: { kind in
+            guard let rule = draft.repeatRule else { return }
+            switch kind {
+            case .never: draft.repeatRule?.end = .never
+            case .after: draft.repeatRule?.end = .after(10)
+            case .on:
+                let start = RepeatRule.Day(draft.start, in: draft.timeZone)
+                draft.repeatRule?.end = .on(RepeatRule.defaultEndDay(after: start, frequency: rule.frequency))
+            }
+        })
+    }
+
+    /// The end day, shown in the event's zone, as the start and end are.
+    private var endDateBinding: Binding<Date> {
+        Binding(get: {
+            if case .on(let day)? = draft.repeatRule?.end { return day.date(in: draft.timeZone) }
+            return draft.start
+        }, set: { date in
+            draft.repeatRule?.end = .on(RepeatRule.Day(date, in: draft.timeZone))
+        })
     }
 
     /// Moving the start keeps the event's length rather than inverting it, as on the web.
