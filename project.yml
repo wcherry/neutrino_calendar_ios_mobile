@@ -98,6 +98,33 @@ targets:
           - CFBundleURLName: com.neutrino.calendar
             CFBundleURLSchemes:
               - neutrinocalendar
+        # Puts Calendar in the share sheet and "Open in…" for `.ics` files and Mail invites; the
+        # file opens as a new event through onOpenURL (ICSImport). Alternate, not Owner: Apple's
+        # Calendar stays the default for a tap. Not opened in place, so iOS hands over a copy in
+        # Documents/Inbox, which the app deletes once read.
+        LSSupportsOpeningDocumentsInPlace: false
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: iCalendar Event
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - com.apple.ical.ics
+              - public.calendar-event
+        # The system declares this already; imported so the type resolves even where it doesn't.
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.apple.ical.ics
+            UTTypeConformsTo:
+              - public.calendar-event
+              - public.text
+            UTTypeDescription: iCalendar File
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - ics
+                - ical
+                - ifb
+                - icalendar
+              public.mime-type:
+                - text/calendar
 
   # Widgets and the Live Activity. No network and no Keychain: everything they show comes from
   # the snapshot the app writes into the App Group. As in Drive's share extension, the few files

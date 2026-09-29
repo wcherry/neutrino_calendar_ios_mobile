@@ -475,8 +475,11 @@ Goal: Calendar shows up everywhere iOS shows a calendar.
 
 ### ⬜ Epic 18 — ICS & System Calendar
 
-* ⬜ Open `.ics` files and invites from Mail or Files (a document type, like the Notes key-file
-  type)
+* ✅ Open `.ics` files and invites from Mail, Files or any app's share sheet: a document type
+  (`com.apple.ical.ics`), parsed on the device (`ICSImport`) into the new-event form, which the
+  user saves. Honours `TZID` (IANA, `X-LIC-LOCATION`, common Windows names), floating times,
+  `DURATION` and the exclusive all-day `DTEND`; skips `RECURRENCE-ID` overrides and refuses
+  `METHOD:CANCEL`. `EXDATE` and alarms aren't carried over yet
 * ⬜ Share an event as `.ics`
 * ⬜ **Backend:** `POST /events/import-ics`, `GET /events/export-ics` (designed, not built)
 * ⬜ Optional one-way mirror into EventKit so events show in the system Calendar and CarPlay.

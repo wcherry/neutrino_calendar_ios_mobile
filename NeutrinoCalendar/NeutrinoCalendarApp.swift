@@ -65,8 +65,13 @@ struct NeutrinoCalendarApp: App {
                           let link = EventLink(string: id) else { return }
                     router.open(link)
                 }
-                // A widget or the Live Activity opens its event, or a day of the month widget.
+                // A widget or the Live Activity opens its event, or a day of the month widget;
+                // an `.ics` file shared from Mail, Files or another app opens as a new event.
                 .onOpenURL { url in
+                    if url.isFileURL {
+                        openCalendarFile(url)
+                        return
+                    }
                     switch WidgetLink(url: url) {
                     case .event(let id)?:
                         if let link = EventLink(string: id) { router.open(link) }
@@ -94,6 +99,24 @@ struct NeutrinoCalendarApp: App {
             default:
                 break
             }
+        }
+    }
+}
+
+extension NeutrinoCalendarApp {
+    /// Reads a shared `.ics` file into the new-event form. Nothing is saved until the user taps
+    /// Add. The copy iOS makes in `Documents/Inbox` is removed once read, so shared files don't
+    /// pile up there.
+    @MainActor
+    private func openCalendarFile(_ url: URL) {
+        defer {
+            if url.path.contains("/Documents/Inbox/") { try? FileManager.default.removeItem(at: url) }
+        }
+        do {
+            router.open(importing: try ICSImport.draft(contentsOf: url, calendar: eventsService.calendar))
+        } catch {
+            router.tab = .calendar
+            eventsService.error = error.localizedDescription
         }
     }
 }

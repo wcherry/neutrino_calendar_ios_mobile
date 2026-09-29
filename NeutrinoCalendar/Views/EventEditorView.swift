@@ -6,11 +6,14 @@ struct EventEditorView: View {
 
     enum Mode: Identifiable {
         case create(day: Date)
+        /// A new event filled in from a shared `.ics` file; see ICSImport.
+        case imported(EventDraft)
         case edit(CalendarEvent)
 
         var id: String {
             switch self {
             case .create:          return "new"
+            case .imported:        return "imported"
             case .edit(let event): return event.id
             }
         }
@@ -38,6 +41,7 @@ struct EventEditorView: View {
         let draft: EventDraft
         switch mode {
         case .create(let day): draft = EventDraft(newOn: day)
+        case .imported(let d): draft = d
         case .edit(let event): draft = EventDraft(editing: event)
         }
         _draft = State(initialValue: draft)
