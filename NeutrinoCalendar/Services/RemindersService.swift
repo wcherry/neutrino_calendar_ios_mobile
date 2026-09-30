@@ -198,6 +198,47 @@ final class RemindersService: ObservableObject {
         }
     }
 
+    // MARK: - One occurrence of a repeating reminder
+    //
+    // A repeating reminder is one row at its next occurrence; earlier ones are gone once
+    // completed. So `.following` and `.all` both change the series, and only `.this` differs: it
+    // needs the server, which does it in one step, and fails offline rather than being queued.
+
+    /// Saves an edit to the occurrences `scope` names: `.this` makes a one-off reminder of the
+    /// current occurrence with the changes and moves the series on; otherwise, `update`.
+    func update(_ reminder: Reminder, scope: RecurrenceScope?, title: String, due: Date, rule: String?,
+                overwrite: Bool = false) async throws {
+        guard scope == .this, reminder.recurrenceRule != nil else {
+            return try await update(reminder, title: title, due: due, rule: rule, overwrite: overwrite)
+        }
+        var request = ReminderOccurrenceRequest(timezone: timeZone().identifier)
+        if title != reminder.title { request.title = title }
+        if due != reminder.due { request.dueTime = ServerDate.format(due) }
+        let result = try await client.editReminderOccurrence(id: reminder.id, request)
+        reminders.append(result.reminder)
+        moveOn(reminder, to: result.series)
+    }
+
+    /// Deletes the occurrences `scope` names: `.this` skips the series past the current occurrence,
+    /// deleting it if that was its last; otherwise, `delete`.
+    func delete(_ reminder: Reminder, scope: RecurrenceScope?) async {
+        guard scope == .this, reminder.recurrenceRule != nil else { return await delete(reminder) }
+        do {
+            let result = try await client.skipReminder(id: reminder.id, timezone: timeZone().identifier)
+            moveOn(reminder, to: result.series)
+        } catch let error as CalendarAPIError where error.isNotFound {
+            reminders.removeAll { $0.id == reminder.id }
+        } catch {
+            logger.error("skip failed: \(error, privacy: .public)")
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// The series as the server left it: at its next occurrence, or gone.
+    private func moveOn(_ reminder: Reminder, to series: Reminder?) {
+        if let series { replace(series) } else { reminders.removeAll { $0.id == reminder.id } }
+    }
+
     private func replace(_ updated: Reminder) {
         if let index = reminders.firstIndex(where: { $0.id == updated.id }) {
             reminders[index] = updated

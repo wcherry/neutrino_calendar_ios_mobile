@@ -29,12 +29,18 @@ struct EventLink: Hashable {
     var string: String { "\(eventID)@\(Int(start.timeIntervalSince1970.rounded()))" }
 
     /// The occurrence of `event` this link names: the event's own length, from the linked start.
-    /// When the event has since moved, that is where it is shown, not where it was.
-    func occurrence(of event: CalendarEvent) -> EventOccurrence {
-        guard event.recurrenceRule != nil else {
+    /// When the event has since moved, that is where it is shown, not where it was. An exception
+    /// is its own occurrence of `series`, the event it is an exception of.
+    func occurrence(of event: CalendarEvent, series: CalendarEvent? = nil) -> EventOccurrence {
+        if let series, event.recurringEventId == series.id {
+            return EventOccurrence(event: event, start: event.start, end: event.end,
+                                   series: series, originalStart: event.originalStart ?? event.start)
+        }
+        guard event.isRecurring else {
             return EventOccurrence(event: event, start: event.start, end: event.end)
         }
-        return EventOccurrence(event: event, start: start, end: start.addingTimeInterval(event.end.timeIntervalSince(event.start)))
+        return EventOccurrence(event: event, start: start, end: start.addingTimeInterval(event.end.timeIntervalSince(event.start)),
+                               series: event, originalStart: start)
     }
 }
 

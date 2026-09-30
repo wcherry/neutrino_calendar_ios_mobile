@@ -4,12 +4,31 @@ import Foundation
 
 /// One appearance of an event on the calendar. A plain event has one; a recurring one has one per
 /// repetition, each sharing the event's id, so the id alone cannot key a list row.
+///
+/// `event` is what is shown: the series, or, for an occurrence changed on its own, its exception.
+/// An edit or delete of a repeating event goes by `series` and `originalStart`, never by
+/// `event.id`, which for an exception is the exception's.
 struct EventOccurrence: Identifiable, Hashable {
     let event: CalendarEvent
     let start: Date
     let end: Date
+    /// The repeating event this is an occurrence of; nil for a one-off event.
+    let series: CalendarEvent?
+    /// Where in its series the occurrence falls, before any edit of it; nil for a one-off event.
+    let originalStart: Date?
 
-    var id: String { "\(event.id)@\(start.timeIntervalSince1970)" }
+    init(event: CalendarEvent, start: Date, end: Date, series: CalendarEvent? = nil, originalStart: Date? = nil) {
+        self.event = event
+        self.start = start
+        self.end = end
+        self.series = series
+        self.originalStart = originalStart
+    }
+
+    var id: String { "\(series?.id ?? event.id)@\((originalStart ?? start).timeIntervalSince1970)" }
+
+    /// Whether this is one of several: an edit or delete asks which of them it is for.
+    var isRepeating: Bool { series != nil }
 }
 
 // MARK: - RecurrenceExpander
@@ -40,17 +59,79 @@ enum RecurrenceExpander {
     /// The web's `MAX_OCCURRENCES`, which bounds FREQ steps rather than occurrences.
     static let maxSteps = 1000
 
+    /// How far an exception's original start and an occurrence may be apart and still be the
+    /// same occurrence. Expansion steps in the viewer's zone, so viewers whose zones change for
+    /// DST on different dates put one occurrence up to an hour apart; occurrences are a day or
+    /// more apart, so this can't reach the wrong one. The web's `EXCEPTION_MATCH_WINDOW_MS`.
+    static let matchWindow: TimeInterval = 2 * 60 * 60
+
     static func expand(_ events: [CalendarEvent], from: Date, to: Date,
                        calendar: Calendar = .current) -> [EventOccurrence] {
         var result: [EventOccurrence] = []
-        for event in events {
+        let exceptions = Dictionary(grouping: events.filter { $0.recurringEventId != nil },
+                                    by: { $0.recurringEventId! })
+        for event in events where event.recurringEventId == nil {
             guard let raw = event.recurrenceRule, !raw.isEmpty, let rule = Rule(parsing: raw) else {
                 result.append(EventOccurrence(event: event, start: event.start, end: event.end))
                 continue
             }
-            result += occurrences(of: event, rule: rule, from: from, to: to, calendar: calendar)
+            let generated = occurrences(of: event, rule: rule, from: from, to: to, calendar: calendar)
+            result += applying(exceptions[event.id] ?? [], of: event, to: generated, from: from, to: to)
         }
         return result
+    }
+
+    /// A series' occurrences in the range with its exceptions applied: each occurrence replaced
+    /// by the exception nearest its start within `matchWindow`, dropped when that one is
+    /// cancelled, and shown at the exception's own time when that is in the range. An exception
+    /// moved here from an occurrence outside the range is added. One whose occurrence was in the
+    /// range but matched nothing stands in for an occurrence the series no longer has, and is not
+    /// shown. The web's `applyExceptions`.
+    private static func applying(_ exceptions: [CalendarEvent], of series: CalendarEvent,
+                                 to generated: [EventOccurrence], from: Date, to: Date) -> [EventOccurrence] {
+        guard !exceptions.isEmpty else { return generated }
+        func inRange(_ date: Date) -> Bool { date >= from && date <= to }
+        func shown(_ exception: CalendarEvent) -> EventOccurrence {
+            EventOccurrence(event: exception, start: exception.start, end: exception.end,
+                            series: series, originalStart: exception.originalStart ?? exception.start)
+        }
+        var used = Set<String>()
+        var result: [EventOccurrence] = []
+
+        for occurrence in generated {
+            let match = exceptions
+                .filter { !used.contains($0.id) && $0.originalStart != nil }
+                .map { ($0, abs($0.originalStart!.timeIntervalSince(occurrence.start))) }
+                .filter { $0.1 <= matchWindow }
+                .min { $0.1 < $1.1 }?.0
+            guard let match else {
+                result.append(occurrence)
+                continue
+            }
+            used.insert(match.id)
+            if !match.cancelled && inRange(match.start) { result.append(shown(match)) }
+        }
+
+        for exception in exceptions where !used.contains(exception.id) && !exception.cancelled {
+            guard let original = exception.originalStart, !inRange(original) else { continue }
+            if inRange(exception.start) { result.append(shown(exception)) }
+        }
+        return result
+    }
+
+    /// The rule for a series that starts at the occurrence `occurrenceStart` of `series`: the same
+    /// rule, with its COUNT, if it has one, less the occurrences before that one. Cancelled ones
+    /// count, as they do when the series is expanded. The web's `ruleFromOccurrence`.
+    static func rule(of series: CalendarEvent, from occurrenceStart: Date, calendar: Calendar = .current) -> String? {
+        guard let rule = series.recurrenceRule, !rule.isEmpty else { return nil }
+        var parts = rule.components(separatedBy: ";")
+        guard let index = parts.firstIndex(where: { $0.uppercased().hasPrefix("COUNT=") }),
+              let count = Int(parts[index].dropFirst("COUNT=".count)) else { return rule }
+        let plain = CalendarEvent(series, start: series.start, end: series.end, recurrenceRule: rule)
+        let before = expand([plain], from: series.start, to: occurrenceStart.addingTimeInterval(-1),
+                            calendar: calendar).count
+        parts[index] = "\(parts[index].prefix("COUNT=".count))\(max(1, count - before))"
+        return parts.joined(separator: ";")
     }
 
     private static func occurrences(of event: CalendarEvent, rule: Rule, from: Date, to: Date,
@@ -81,7 +162,8 @@ enum RecurrenceExpander {
                 if occurrence > to { continue }
                 if occurrence >= from {
                     result.append(EventOccurrence(event: event, start: occurrence,
-                                                  end: occurrence.addingTimeInterval(duration)))
+                                                  end: occurrence.addingTimeInterval(duration),
+                                                  series: event, originalStart: occurrence))
                 }
             }
 

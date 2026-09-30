@@ -104,6 +104,41 @@ struct EventDraft: Equatable {
         attendees = event.attendees
     }
 
+    /// The form for editing the occurrences of `occurrence` that `scope` names:
+    ///
+    /// - `.all`, or a one-off event: the event from its own start (`init(editing:)`).
+    /// - `.this`: the occurrence as it is shown, an exception's own fields included.
+    /// - `.following`: the series as it would run from this occurrence, its COUNT less the
+    ///   occurrences before.
+    ///
+    /// From the series' first occurrence `.following` is `.all`; `effectiveScope` says so.
+    init(editing occurrence: EventOccurrence, scope: RecurrenceScope?, calendar: Calendar = .current) {
+        guard let series = occurrence.series, let scope = Self.effectiveScope(occurrence, scope) else {
+            self.init(editing: occurrence.event, calendar: calendar)
+            return
+        }
+        switch scope {
+        case .all:
+            self.init(editing: series, calendar: calendar)
+        case .this:
+            self.init(editing: CalendarEvent(occurrence.event, start: occurrence.start, end: occurrence.end,
+                                             recurrenceRule: occurrence.event.recurrenceRule), calendar: calendar)
+        case .following:
+            let at = occurrence.originalStart ?? occurrence.start
+            let rule = RecurrenceExpander.rule(of: series, from: at, calendar: calendar)
+            self.init(editing: CalendarEvent(series, start: at, end: at.addingTimeInterval(series.end.timeIntervalSince(series.start)),
+                                             recurrenceRule: rule), calendar: calendar)
+        }
+    }
+
+    /// The scope an edit of `occurrence` really has: "this and following" from a series' first
+    /// occurrence is the whole series. Nil for a one-off event.
+    static func effectiveScope(_ occurrence: EventOccurrence, _ scope: RecurrenceScope?) -> RecurrenceScope? {
+        guard let series = occurrence.series, let scope else { return nil }
+        if scope == .following, (occurrence.originalStart ?? occurrence.start) <= series.start { return .all }
+        return scope
+    }
+
     /// Changes the zone and keeps the clock times, as the iPhone's Calendar does: picking New
     /// York for a 10:00 event means 10:00 in New York, not the same instant shown as 13:00.
     mutating func setTimeZone(_ zone: TimeZone) {

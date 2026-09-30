@@ -274,12 +274,15 @@ final class EventsService: ObservableObject {
     }
 
     /// `held` with every event in `changed` or `deleted` taken out, and those of `changed` that
-    /// belong to the range put back in.
+    /// belong to the range put back in. An exception belongs wherever its series is held, and
+    /// goes with it.
     static func merge(_ held: [CalendarEvent], changed: [CalendarEvent], deleted: Set<String>,
                       from: Date, to: Date) -> [CalendarEvent] {
         let touched = deleted.union(changed.map(\.id))
-        return held.filter { !touched.contains($0.id) }
-            + changed.filter { belongs($0, from: from, to: to) }
+        let rows = held.filter { !touched.contains($0.id) }
+            + changed.filter { $0.recurringEventId != nil || belongs($0, from: from, to: to) }
+        let series = Set(rows.filter { $0.recurringEventId == nil }.map(\.id))
+        return rows.filter { $0.recurringEventId.map(series.contains) ?? true }
     }
 
     /// The server's own test for listing an event in a range (`find_by_user` in
@@ -335,6 +338,62 @@ final class EventsService: ObservableObject {
         let theirs = EventDraft(editing: current, calendar: calendar).updateRequest(from: original)
         let clashes = EditConflict.clashes(mine: request, theirs: theirs)
         if !clashes.isEmpty { throw EditConflict.changedElsewhere(clashes) }
+    }
+
+    /// Saves an edit of `occurrence` to the occurrences `scope` names; see
+    /// `neutrino/agent_docs/recurrence-exceptions.md`. A one-off event, or `.all`, is `update`,
+    /// of the series for `.all`. `.this` changes the one occurrence, and `.following` splits the
+    /// series there, always sending the new series' rule since only this side can count how far a
+    /// COUNT has run. Those two need the server, and fail offline rather than being queued: a
+    /// queued split could land after edits that assume it hadn't happened.
+    @discardableResult
+    func update(_ occurrence: EventOccurrence, scope: RecurrenceScope?, from original: EventDraft,
+                to draft: EventDraft, overwrite: Bool = false) async throws -> CalendarEvent {
+        guard let series = occurrence.series, let scope = EventDraft.effectiveScope(occurrence, scope),
+              let at = occurrence.originalStart else {
+            return try await update(occurrence.event, from: original, to: draft, overwrite: overwrite)
+        }
+        var request = draft.updateRequest(from: original)
+        switch scope {
+        case .all:
+            return try await update(series, from: original, to: draft, overwrite: overwrite)
+        case .this:
+            request.recurrenceRule = nil
+            guard request != UpdateEventRequest() else { return occurrence.event }
+            let saved = try await client.editOccurrence(series: series.id, originalStart: at, request)
+            invalidate()
+            return saved
+        case .following:
+            request.recurrenceRule = draft.repeatOption.rule ?? ""
+            let saved = try await client.splitEvent(series: series.id, SplitEventRequest(
+                originalStartTime: ServerDate.format(at), changes: request))
+            invalidate()
+            return saved
+        }
+    }
+
+    /// Deletes the occurrences of `occurrence` that `scope` names: the one, it and every later
+    /// one, or the whole series. A one-off event is `delete`.
+    func delete(_ occurrence: EventOccurrence, scope: RecurrenceScope?) async throws {
+        guard let series = occurrence.series, let scope, let at = occurrence.originalStart else {
+            return try await delete(occurrence.event)
+        }
+        switch scope {
+        case .all:
+            return try await delete(series)
+        case .this:
+            try await ignoringNotFound { try await self.client.cancelOccurrence(series: series.id, originalStart: at) }
+        case .following:
+            try await ignoringNotFound { try await self.client.deleteEvent(id: series.id, fromOccurrence: at) }
+        }
+        invalidate()
+    }
+
+    /// A series deleted elsewhere has no occurrences left to delete.
+    private func ignoringNotFound(_ body: () async throws -> Void) async throws {
+        do {
+            try await body()
+        } catch let error as CalendarAPIError where error.isNotFound {}
     }
 
     /// Deleting something already deleted elsewhere is not an error. Offline, the delete is queued

@@ -27,10 +27,21 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
     /// The IANA zone the event was created in, for a timed event. Display only: times are
     /// instants, and the web ignores this when placing an event on the calendar.
     let timezone: String?
+    /// Set on an exception: the repeating event whose occurrence this row stands in for. See
+    /// `neutrino/agent_docs/recurrence-exceptions.md`.
+    let recurringEventId: String?
+    /// Set on an exception: the occurrence's start in its series, before any edit. Its key.
+    let originalStart: Date?
+    /// An exception that deletes its occurrence.
+    let cancelled: Bool
+
+    /// Whether this is a series: an event with a rule. An exception is never one.
+    var isRecurring: Bool { !(recurrenceRule ?? "").isEmpty }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, description, startTime, endTime, allDay, location, recurrenceRule
         case attendees, source, createdAt, updatedAt, timezone
+        case recurringEventId, originalStartTime, cancelled
     }
 
     init(from decoder: Decoder) throws {
@@ -48,12 +59,16 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
         createdAt = (try? c.decodeIfPresent(String.self, forKey: .createdAt)).flatMap(ServerDate.parse)
         updatedAt = (try? c.decodeIfPresent(String.self, forKey: .updatedAt)).flatMap(ServerDate.parse)
         timezone = try c.decodeIfPresent(String.self, forKey: .timezone)
+        recurringEventId = try c.decodeIfPresent(String.self, forKey: .recurringEventId)
+        originalStart = (try? c.decodeIfPresent(String.self, forKey: .originalStartTime)).flatMap(ServerDate.parse)
+        cancelled = try c.decodeIfPresent(Bool.self, forKey: .cancelled) ?? false
     }
 
     /// For tests and previews.
     init(id: String, title: String, description: String? = nil, start: Date, end: Date,
          allDay: Bool = false, location: String? = nil, recurrenceRule: String? = nil,
-         attendees: [String] = [], source: EventSource = .local, timezone: String? = nil) {
+         attendees: [String] = [], source: EventSource = .local, timezone: String? = nil,
+         recurringEventId: String? = nil, originalStart: Date? = nil, cancelled: Bool = false) {
         self.id = id
         self.title = title
         self.description = description
@@ -67,6 +82,18 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
         self.createdAt = nil
         self.updatedAt = nil
         self.timezone = timezone
+        self.recurringEventId = recurringEventId
+        self.originalStart = originalStart
+        self.cancelled = cancelled
+    }
+
+    /// `event` with other times and rule: an occurrence of it, or the series as it runs from one.
+    init(_ event: CalendarEvent, start: Date, end: Date, recurrenceRule: String?) {
+        self.init(id: event.id, title: event.title, description: event.description, start: start, end: end,
+                  allDay: event.allDay, location: event.location, recurrenceRule: recurrenceRule,
+                  attendees: event.attendees, source: event.source, timezone: event.timezone,
+                  recurringEventId: event.recurringEventId, originalStart: event.originalStart,
+                  cancelled: event.cancelled)
     }
 
     private static func decodeDate(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) throws -> Date {

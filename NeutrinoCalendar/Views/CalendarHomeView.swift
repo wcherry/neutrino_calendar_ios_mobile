@@ -44,7 +44,11 @@ struct CalendarHomeView: View {
         guard let link = router.openEvent else { return }
         router.openEvent = nil
         do {
-            let occurrence = link.occurrence(of: try await events.event(id: link.eventID))
+            let event = try await events.event(id: link.eventID)
+            // An occurrence changed on its own is its exception; it opens as part of its series.
+            var series: CalendarEvent?
+            if let id = event.recurringEventId { series = try await events.event(id: id) }
+            let occurrence = link.occurrence(of: event, series: series)
             events.select(EventDayRange(occurrence, calendar: events.calendar).first)
             opened = occurrence
         } catch let error as CalendarAPIError where error.isNotFound {
@@ -220,7 +224,7 @@ struct EventRowView: View {
                 Text(occurrence.event.title)
                     .font(.body.weight(.medium))
                     .lineLimit(2)
-                if occurrence.event.recurrenceRule != nil {
+                if occurrence.isRepeating {
                     Image(systemName: "repeat")
                         .font(.caption)
                         .foregroundStyle(.secondary)

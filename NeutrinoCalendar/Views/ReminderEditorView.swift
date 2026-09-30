@@ -16,12 +16,13 @@ struct ReminderEditorView: View {
 
     enum Mode: Identifiable {
         case create(link: ReminderLink, due: Date?)
-        case edit(Reminder)
+        /// For a repeating reminder, which of its occurrences the edit is for; see RecurrenceScope.
+        case edit(Reminder, scope: RecurrenceScope? = nil)
 
         var id: String {
             switch self {
-            case .create:             return "new"
-            case .edit(let reminder): return reminder.id
+            case .create:                          return "new"
+            case .edit(let reminder, let scope):   return "\(reminder.id)-\(scope?.rawValue ?? "")"
             }
         }
     }
@@ -39,9 +40,15 @@ struct ReminderEditorView: View {
     @State private var isSaving = false
     @State private var error: String?
     @State private var conflict: EditConflict?
+    @State private var confirmingDelete = false
 
     private var existing: Reminder? {
-        if case .edit(let reminder) = mode { return reminder }
+        if case .edit(let reminder, _) = mode { return reminder }
+        return nil
+    }
+
+    private var scope: RecurrenceScope? {
+        if case .edit(let reminder, let scope) = mode, reminder.recurrenceRule != nil { return scope }
         return nil
     }
 
@@ -53,13 +60,22 @@ struct ReminderEditorView: View {
                     DatePicker("Due", selection: $due)
                 }
 
-                Section {
-                    Picker("Repeat", selection: $repeatOption) {
-                        ForEach(repeatChoices) { Text($0.label).tag($0) }
+                if scope == .this {
+                    Section {
+                        Label(RecurrenceScope.this.label(.reminder), systemImage: "repeat")
+                            .foregroundStyle(.secondary)
+                    } footer: {
+                        Text("Saved as a reminder of its own. The repeating one moves on to its next time.")
                     }
-                } footer: {
-                    if repeatOption != .never {
-                        Text("Completing it moves it to the next time it's due.")
+                } else {
+                    Section {
+                        Picker("Repeat", selection: $repeatOption) {
+                            ForEach(repeatChoices) { Text($0.label).tag($0) }
+                        }
+                    } footer: {
+                        if repeatOption != .never {
+                            Text("Completing it moves it to the next time it's due.")
+                        }
                     }
                 }
 
@@ -75,9 +91,10 @@ struct ReminderEditorView: View {
                 if let existing {
                     Section {
                         Button("Delete Reminder", role: .destructive) {
-                            Task {
-                                await reminders.delete(existing)
-                                dismiss()
+                            if existing.recurrenceRule != nil {
+                                confirmingDelete = true
+                            } else {
+                                Task { await delete(existing, scope: nil) }
                             }
                         }
                     }
@@ -96,6 +113,10 @@ struct ReminderEditorView: View {
                 }
             }
             .onAppear(perform: fill)
+            .recurrenceScopeDialog("Delete Repeating Reminder", kind: .reminder, destructive: true,
+                                   isPresented: $confirmingDelete) { scope in
+                if let existing { Task { await delete(existing, scope: scope) } }
+            }
             .task { await loadTasksIfLinkable() }
             .editConflictAlert($conflict,
                                overwrite: { Task { await save(overwrite: true) } },
@@ -126,7 +147,7 @@ struct ReminderEditorView: View {
                     Text("A reminder can't be moved to a different task later.")
                 }
             }
-        case .edit(let reminder):
+        case .edit(let reminder, _):
             if reminder.linkedEventId != nil {
                 Section { Label("On an event", systemImage: "calendar") }
             } else if let taskID = reminder.linkedTaskId {
@@ -153,7 +174,7 @@ struct ReminderEditorView: View {
 
     private func fill() {
         switch mode {
-        case .edit(let reminder):
+        case .edit(let reminder, _):
             title = reminder.title
             due = reminder.due
             repeatOption = RepeatOption(rule: reminder.recurrenceRule)
@@ -164,6 +185,11 @@ struct ReminderEditorView: View {
             due = suggested ?? Calendar.current.nextDate(after: Date(), matching: DateComponents(minute: 0),
                                                          matchingPolicy: .nextTime) ?? Date()
         }
+    }
+
+    private func delete(_ reminder: Reminder, scope: RecurrenceScope?) async {
+        await reminders.delete(reminder, scope: scope)
+        dismiss()
     }
 
     private func loadTasksIfLinkable() async {
@@ -180,9 +206,9 @@ struct ReminderEditorView: View {
             case .create(let link, _):
                 try await reminders.create(title: trimmedTitle, due: due, rule: repeatOption.rule,
                                            eventID: link.eventID, task: link.task ?? task)
-            case .edit(let reminder):
-                try await reminders.update(reminder, title: trimmedTitle, due: due, rule: repeatOption.rule,
-                                           overwrite: overwrite)
+            case .edit(let reminder, _):
+                try await reminders.update(reminder, scope: scope, title: trimmedTitle, due: due,
+                                           rule: repeatOption.rule, overwrite: overwrite)
             }
             dismiss()
         } catch let conflict as EditConflict {

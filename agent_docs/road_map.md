@@ -29,7 +29,7 @@ work and what needs a server epic first.
 | Area | Status | Notes |
 |---|---|---|
 | Events CRUD | ✅ | `GET/POST /events`, `GET/PUT/DELETE /events/{id}`. `from`/`to` range query, `allDay`, `location`, `timezone`, `attendees` (emails only) |
-| Recurrence | ⚠️ | The server **stores** an RRULE string and nothing else. The web app expands it client-side (`calendarHelpers.ts`). There is no EXDATE, no per-occurrence override, and no "this and following" edit |
+| Recurrence | ✅ | The server stores an RRULE and **exceptions**: rows standing in for one occurrence, edited or cancelled (`?exceptions=true`). It splits a series for "this and following". Both clients expand, applying the exceptions (`neutrino/agent_docs/recurrence-exceptions.md`) |
 | Reminders | ✅ | CRUD, `linkedEventId`, `linkedTaskId`, `recurrenceRule`, `completed`. Completing a recurring reminder moves it to its next occurrence (server-side since Epic 12) |
 | Tasks | ✅ | Lists, reorder, multi-list membership, schedule-to-event, attachments |
 | Attachments | ✅ | Events and tasks, by Drive `file_id` |
@@ -207,14 +207,14 @@ Features
 * ✅ Attendees (an email list; stored only, see Epic 19)
 * ✅ Read-only handling for provider-sourced events until write-back exists (Epic 17): no Edit
   button, and a line saying where to edit it
-* A repeating event is edited and deleted as a whole series, from the series' own start. Editing
-  or deleting one occurrence needs recurrence exceptions (Epic 21)
+* ✅ A repeating event is edited and deleted as this event, this and following, or all events
+  (Epic 21)
 * ⬜ Reminders and attachments while creating, as the web's form offers: on iOS they are added
   from the event's screen once it exists
 * ⬜ Web: a field cleared in the event form (location, notes, repeat) is sent as `null`, which the
   server reads as "leave alone", so it keeps its old value. iOS sends `""`
-* ⬜ Web: editing an occurrence of a repeating event saves that occurrence's date as the series'
-  start, dropping every earlier occurrence. iOS edits from the series' own start
+* ✅ Web: editing an occurrence of a repeating event used to save that occurrence's date as the
+  series' start. "All events" now edits from the series' own start, as iOS does
 * ⬜ Web: events synced from Google, Outlook or iCloud can be edited there, though the change
   never reaches the provider
 
@@ -508,11 +508,23 @@ Reuse Neutrino's sharing model.
 
 ⸻
 
-### ⬜ Epic 21 — Recurrence Exceptions
+### ✅ Epic 21 — Recurrence Exceptions
 
-* ⬜ Edit or delete "this event", "this and following" or "all events"
-* ⬜ **Backend:** EXDATE and occurrence-override storage. This is the biggest server gap, and web
-  needs it too
+Design: `neutrino/agent_docs/recurrence-exceptions.md`. Google's model: exceptions are event
+rows keyed by the series and the occurrence's original start, and "this and following" splits
+the series.
+
+* ✅ Edit or delete "this event", "this and following" or "all events", on iOS and the web
+* ✅ **Backend:** exception rows (edited or cancelled occurrences), a transactional split, and a
+  series edit that carries the exceptions along. Listed only to clients that ask, so older builds
+  see each series as before
+* ✅ `RecurrenceExpander` and the web's `expandRecurringEvents` apply exceptions the same way:
+  nearest occurrence within two hours, so viewers in zones with different DST dates agree.
+  Pinned by `RecurrenceExceptionTests` and `recurrenceExceptions.test.ts`
+* ✅ Repeating reminders: this reminder (a one-off copy, and the series skips on), this and
+  following, all reminders
+* ⬜ Offline: "this event" and "this and following" need the server; only "all events" is queued
+* ⬜ `.ics` import of `RECURRENCE-ID` overrides and EXDATE into exceptions
 
 ⸻
 
