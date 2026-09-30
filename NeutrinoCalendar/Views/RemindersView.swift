@@ -10,6 +10,9 @@ struct RemindersView: View {
     @State private var range: ReminderRange = .all
     @State private var search = ""
     @State private var editing: ReminderEditorView.Mode?
+    /// An edit or delete of a repeating reminder, waiting on which occurrences it is for.
+    @State private var editingRepeating: Reminder?
+    @State private var deletingRepeating: Reminder?
 
     var body: some View {
         let visible = reminders.visible(in: range, matching: search)
@@ -64,6 +67,13 @@ struct RemindersView: View {
         .sheet(item: $editing) { mode in
             ReminderEditorView(mode: mode)
         }
+        .recurrenceScopeDialog("Edit Repeating Reminder", kind: .reminder, item: $editingRepeating) { reminder, scope in
+            editing = .edit(reminder, scope: scope)
+        }
+        .recurrenceScopeDialog("Delete Repeating Reminder", kind: .reminder, destructive: true,
+                               item: $deletingRepeating) { reminder, scope in
+            Task { await reminders.delete(reminder, scope: scope) }
+        }
         .refreshable { await reminders.reload() }
         .task {
             await reminders.reload()
@@ -77,9 +87,11 @@ struct RemindersView: View {
         ReminderRow(reminder: reminder, taskTitle: reminder.linkedTaskId.flatMap { reminders.taskTitles[$0] })
             .densityRow()
             .contentShape(Rectangle())
-            .onTapGesture { editing = .edit(reminder) }
+            .onTapGesture { edit(reminder) }
             .swipeActions {
-                Button(role: .destructive) { Task { await reminders.delete(reminder) } } label: {
+                Button(role: .destructive) {
+                    if reminder.recurrenceRule != nil { deletingRepeating = reminder } else { Task { await reminders.delete(reminder) } }
+                } label: {
                     Label("Delete", systemImage: "trash")
                 }
             }
@@ -89,7 +101,12 @@ struct RemindersView: View {
         guard let id = router.openReminderID,
               let reminder = reminders.reminders.first(where: { $0.id == id }) else { return }
         router.openReminderID = nil
-        editing = .edit(reminder)
+        edit(reminder)
+    }
+
+    /// Opens the editor, asking first which occurrences the edit is for if the reminder repeats.
+    private func edit(_ reminder: Reminder) {
+        if reminder.recurrenceRule != nil { editingRepeating = reminder } else { editing = .edit(reminder) }
     }
 
     /// The web's wording: a range that hides everything says how much it is hiding, so it doesn't

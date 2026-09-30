@@ -8,13 +8,15 @@ struct EventEditorView: View {
         case create(day: Date)
         /// A new event filled in from a shared `.ics` file; see ICSImport.
         case imported(EventDraft)
-        case edit(CalendarEvent)
+        /// An edit of an occurrence, and, for a repeating event, which of its occurrences the edit
+        /// is for; see RecurrenceScope.
+        case edit(EventOccurrence, RecurrenceScope?)
 
         var id: String {
             switch self {
-            case .create:          return "new"
-            case .imported:        return "imported"
-            case .edit(let event): return event.id
+            case .create:                     return "new"
+            case .imported:                   return "imported"
+            case .edit(let occurrence, let scope): return "\(occurrence.id)-\(scope?.rawValue ?? "one-off")"
             }
         }
     }
@@ -33,6 +35,8 @@ struct EventEditorView: View {
     @State private var isSaving = false
     @State private var error: String?
     @State private var confirmingDelete = false
+    /// Which occurrences the edit is for; nil for a one-off event or a new one.
+    private let scope: RecurrenceScope?
     @State private var conflict: EditConflict?
 
     init(mode: Mode, onSaved: @escaping (CalendarEvent?) -> Void = { _ in }) {
@@ -42,15 +46,26 @@ struct EventEditorView: View {
         switch mode {
         case .create(let day): draft = EventDraft(newOn: day)
         case .imported(let d): draft = d
-        case .edit(let event): draft = EventDraft(editing: event)
+        case .edit(let occurrence, let scope): draft = EventDraft(editing: occurrence, scope: scope)
+        }
+        if case .edit(let occurrence, let scope) = mode {
+            self.scope = EventDraft.effectiveScope(occurrence, scope)
+        } else {
+            self.scope = nil
         }
         _draft = State(initialValue: draft)
         _original = State(initialValue: draft)
     }
 
-    private var existing: CalendarEvent? {
-        if case .edit(let event) = mode { return event }
+    private var occurrence: EventOccurrence? {
+        if case .edit(let occurrence, _) = mode { return occurrence }
         return nil
+    }
+
+    /// The event the edit changes: the series for "all events", otherwise what was tapped.
+    private var existing: CalendarEvent? {
+        guard let occurrence else { return nil }
+        return scope == .all ? occurrence.series : occurrence.event
     }
 
     var body: some View {
@@ -80,38 +95,49 @@ struct EventEditorView: View {
                 // Times are entered in the event's zone, so 09:00 in New York is 09:00 there.
                 .environment(\.timeZone, draft.timeZone)
 
-                Section {
-                    Picker("Repeat", selection: presetBinding) {
-                        ForEach(repeatChoices) { Text($0.label).tag($0) }
+                if scope == .this {
+                    Section {
+                        Label(RecurrenceScope.this.label(.event), systemImage: "repeat")
+                            .foregroundStyle(.secondary)
+                    } footer: {
+                        Text("Changes apply to this event only. The rest of the series stays as it is.")
                     }
-                    if let rule = draft.repeatRule {
-                        Stepper(value: Binding(get: { rule.interval },
-                                               set: { draft.repeatRule?.interval = $0 }),
-                                in: 1...RepeatRule.maxNumber) {
-                            Text("Every \(rule.interval) \(rule.frequency.unit(rule.interval))")
+                } else {
+                    Section {
+                        Picker("Repeat", selection: presetBinding) {
+                            ForEach(repeatChoices) { Text($0.label).tag($0) }
                         }
-                        Picker("End Repeat", selection: endKindBinding) {
-                            ForEach(EndKind.allCases) { Text($0.label).tag($0) }
-                        }
-                        switch rule.end {
-                        case .never:
-                            EmptyView()
-                        case .on:
-                            DatePicker("End Date", selection: endDateBinding,
-                                       in: RepeatRule.Day(draft.start, in: draft.timeZone).date(in: draft.timeZone)...,
-                                       displayedComponents: .date)
-                                .environment(\.timeZone, draft.timeZone)
-                        case .after(let count):
-                            Stepper(value: Binding(get: { count },
-                                                   set: { draft.repeatRule?.end = .after($0) }),
+                        if let rule = draft.repeatRule {
+                            Stepper(value: Binding(get: { rule.interval },
+                                                   set: { draft.repeatRule?.interval = $0 }),
                                     in: 1...RepeatRule.maxNumber) {
-                                Text("After \(count) \(count == 1 ? "time" : "times")")
+                                Text("Every \(rule.interval) \(rule.frequency.unit(rule.interval))")
+                            }
+                            Picker("End Repeat", selection: endKindBinding) {
+                                ForEach(EndKind.allCases) { Text($0.label).tag($0) }
+                            }
+                            switch rule.end {
+                            case .never:
+                                EmptyView()
+                            case .on:
+                                DatePicker("End Date", selection: endDateBinding,
+                                           in: RepeatRule.Day(draft.start, in: draft.timeZone).date(in: draft.timeZone)...,
+                                           displayedComponents: .date)
+                                    .environment(\.timeZone, draft.timeZone)
+                            case .after(let count):
+                                Stepper(value: Binding(get: { count },
+                                                       set: { draft.repeatRule?.end = .after($0) }),
+                                        in: 1...RepeatRule.maxNumber) {
+                                    Text("After \(count) \(count == 1 ? "time" : "times")")
+                                }
                             }
                         }
-                    }
-                } footer: {
-                    if existing?.recurrenceRule != nil {
-                        Text("Changes apply to every occurrence. Editing one occurrence on its own isn't supported yet.")
+                    } footer: {
+                        switch scope {
+                        case .following?: Text("Changes apply to this event and every one after it.")
+                        case .all?:       Text("Changes apply to every event in the series.")
+                        default:          EmptyView()
+                        }
                     }
                 }
 
@@ -161,10 +187,16 @@ struct EventEditorView: View {
                 }
             }
             .confirmationDialog(deleteLabel, isPresented: $confirmingDelete, titleVisibility: .visible) {
-                Button(deleteLabel, role: .destructive) { Task { await delete() } }
+                if occurrence?.isRepeating == true {
+                    ForEach(RecurrenceScope.allCases) { choice in
+                        Button("Delete \(choice.label(.event))", role: .destructive) { Task { await delete(choice) } }
+                    }
+                } else {
+                    Button(deleteLabel, role: .destructive) { Task { await delete(nil) } }
+                }
             } message: {
-                if existing?.recurrenceRule != nil {
-                    Text("This deletes every occurrence of the event.")
+                if occurrence?.isRepeating == true {
+                    Text("This is a repeating event.")
                 }
             }
             .editConflictAlert($conflict,
@@ -173,9 +205,7 @@ struct EventEditorView: View {
         }
     }
 
-    private var deleteLabel: String {
-        existing?.recurrenceRule != nil ? "Delete All Occurrences" : "Delete Event"
-    }
+    private var deleteLabel: String { "Delete Event" }
 
     /// The standard choices, plus the event's own rule when the form can't show it, so it is kept.
     private var repeatChoices: [RepeatOption] {
@@ -264,8 +294,8 @@ struct EventEditorView: View {
         defer { isSaving = false }
         do {
             let saved: CalendarEvent
-            if let existing {
-                saved = try await events.update(existing, from: original, to: draft, overwrite: overwrite)
+            if let occurrence {
+                saved = try await events.update(occurrence, scope: scope, from: original, to: draft, overwrite: overwrite)
             } else {
                 saved = try await events.create(draft)
             }
@@ -290,14 +320,16 @@ struct EventEditorView: View {
         dismiss()
     }
 
-    private func delete() async {
-        guard let existing else { return }
+    /// Deletes the occurrences `scope` names, of a repeating event; the event, of a one-off.
+    private func delete(_ scope: RecurrenceScope?) async {
+        guard let occurrence else { return }
         isSaving = true
         defer { isSaving = false }
         do {
-            try await events.delete(existing)
+            try await events.delete(occurrence, scope: scope)
             // A task scheduled as this event is no longer on the calendar.
-            if tasks.tasks.contains(where: { $0.eventId == existing.id }) { await tasks.reload() }
+            let id = occurrence.series?.id ?? occurrence.event.id
+            if tasks.tasks.contains(where: { $0.eventId == id }) { await tasks.reload() }
             onSaved(nil)
             dismiss()
         } catch {

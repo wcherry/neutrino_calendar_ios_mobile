@@ -86,11 +86,12 @@ final class CalendarAPIClient {
 
     /// Events overlapping `[from, to]`, plus every recurring event that starts by `to` — the
     /// server returns recurring masters whatever their end, since their later occurrences may fall
-    /// in the range. Expansion is the caller's job.
+    /// in the range — and every exception of those. Expansion is the caller's job.
     func events(from: Date, to: Date) async throws -> [CalendarEvent] {
         let response: ListEventsResponse = try await get("/api/v1/calendar/events", query: [
             URLQueryItem(name: "from", value: ServerDate.format(from)),
             URLQueryItem(name: "to", value: ServerDate.format(to)),
+            URLQueryItem(name: "exceptions", value: "true"),
         ])
         return response.events
     }
@@ -130,11 +131,27 @@ final class CalendarAPIClient {
         _ = try await send("DELETE", "/api/v1/calendar/reminders/\(id)")
     }
 
+    /// "Delete this reminder" for a repeating one: moves it on to its next occurrence, stepped in
+    /// `timezone`, or deletes it once its rule has run out.
+    func skipReminder(id: String, timezone: String) async throws -> SkipReminderResponse {
+        try decode(try await send("POST", "/api/v1/calendar/reminders/\(id)/skip",
+                                  body: SkipReminderRequest(timezone: timezone)),
+                   path: "reminders/{id}/skip")
+    }
+
+    /// "Edit this reminder" for a repeating one: the current occurrence becomes a one-off with the
+    /// changes, and the series moves on.
+    func editReminderOccurrence(id: String, _ request: ReminderOccurrenceRequest) async throws -> ReminderOccurrenceResponse {
+        try decode(try await send("POST", "/api/v1/calendar/reminders/\(id)/occurrence", body: request),
+                   path: "reminders/{id}/occurrence")
+    }
+
     /// What changed since `since` (a previous answer's `cursor`); with no cursor, only a cursor to
     /// start from. Take one before loading, so nothing changed during the load is missed.
     func eventChanges(since: String?) async throws -> EventChanges {
         try await get("/api/v1/calendar/events/changes",
-                      query: since.map { [URLQueryItem(name: "since", value: $0)] } ?? [])
+                      query: (since.map { [URLQueryItem(name: "since", value: $0)] } ?? [])
+                          + [URLQueryItem(name: "exceptions", value: "true")])
     }
 
     /// Asks the server to pull from every connected provider (Google, Outlook, Apple) now. Answers
@@ -168,6 +185,39 @@ final class CalendarAPIClient {
     /// Deletes the event, and with it every occurrence of a repeating one and its guests.
     func deleteEvent(id: String) async throws {
         _ = try await send("DELETE", "/api/v1/calendar/events/\(id)")
+    }
+
+    // MARK: - One occurrence of a repeating event
+    //
+    // An occurrence is named by its series and its start in it, before any edit: the key of its
+    // exception on the server. See `neutrino/agent_docs/recurrence-exceptions.md`.
+
+    static func occurrencePath(series: String, originalStart: Date) -> String {
+        "/api/v1/calendar/events/\(series)/occurrences/\(ServerDate.format(originalStart))"
+    }
+
+    /// "This event": saves the changes to one occurrence only, and answers with its exception.
+    func editOccurrence(series: String, originalStart: Date, _ request: UpdateEventRequest) async throws -> CalendarEvent {
+        try decode(try await send("PUT", Self.occurrencePath(series: series, originalStart: originalStart), body: request),
+                   path: "events/{id}/occurrences/{start}")
+    }
+
+    /// "Delete this event".
+    func cancelOccurrence(series: String, originalStart: Date) async throws {
+        _ = try await send("DELETE", Self.occurrencePath(series: series, originalStart: originalStart))
+    }
+
+    /// "This and following": ends the series before the occurrence and starts a new one there,
+    /// with the changes. Answers with the new series.
+    func splitEvent(series: String, _ request: SplitEventRequest) async throws -> CalendarEvent {
+        try decode(try await send("POST", "/api/v1/calendar/events/\(series)/split", body: request),
+                   path: "events/{id}/split")
+    }
+
+    /// "Delete this and following events": ends the series before the occurrence.
+    func deleteEvent(id: String, fromOccurrence start: Date) async throws {
+        _ = try await send("DELETE", "/api/v1/calendar/events/\(id)",
+                           query: [URLQueryItem(name: "fromOccurrence", value: ServerDate.format(start))])
     }
 
     // MARK: - Tasks

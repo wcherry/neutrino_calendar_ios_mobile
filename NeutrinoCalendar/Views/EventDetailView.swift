@@ -17,6 +17,10 @@ struct EventDetailView: View {
     }
 
     @State private var customReminder: ReminderEditorView.Mode?
+    /// A repeating event's Edit, waiting on which occurrences it is for.
+    @State private var choosingEditScope = false
+    /// A repeating reminder's delete, waiting on which occurrences it is for.
+    @State private var deletingReminder: Reminder?
     @StateObject private var attachmentsPresenter = AttachmentsPresenter()
 
 
@@ -42,7 +46,7 @@ struct EventDetailView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
-                    if let rule = event.recurrenceRule, !rule.isEmpty {
+                    if let rule = (occurrence.series ?? event).recurrenceRule, !rule.isEmpty {
                         Label(EventFormatting.recurrenceSummary(rule), systemImage: "repeat")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -91,10 +95,19 @@ struct EventDetailView: View {
         .sheet(item: $editing) { mode in
             EventEditorView(mode: mode) { saved in applyEdit(saved) }
         }
+        .recurrenceScopeDialog("Edit Repeating Event", kind: .event, isPresented: $choosingEditScope) { scope in
+            editing = .edit(occurrence, scope)
+        }
+        .recurrenceScopeDialog("Delete Repeating Reminder", kind: .reminder, destructive: true,
+                               item: $deletingReminder) { reminder, scope in
+            Task { await reminders.delete(reminder, scope: scope) }
+        }
         .toolbar {
             if event.source == .local {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Edit") { editing = .edit(event) }
+                    Button("Edit") {
+                        if occurrence.isRepeating { choosingEditScope = true } else { editing = .edit(occurrence, nil) }
+                    }
                 }
             }
         }
@@ -104,7 +117,7 @@ struct EventDetailView: View {
     /// can't be, since which occurrence this was is gone once the series moves, so the screen
     /// closes and the calendar shows the new series. A deleted event closes it too.
     private func applyEdit(_ saved: CalendarEvent?) {
-        guard let saved, saved.recurrenceRule?.isEmpty ?? true, event.recurrenceRule?.isEmpty ?? true else {
+        guard let saved, !saved.isRecurring, saved.recurringEventId == nil, !occurrence.isRepeating else {
             dismiss()
             return
         }
@@ -124,7 +137,9 @@ struct EventDetailView: View {
                 ReminderRow(reminder: reminder, showsLink: false)
                     .densityRow()
                     .swipeActions {
-                        Button(role: .destructive) { Task { await reminders.delete(reminder) } } label: {
+                        Button(role: .destructive) {
+                            if reminder.recurrenceRule != nil { deletingReminder = reminder } else { Task { await reminders.delete(reminder) } }
+                        } label: {
                             Label("Delete", systemImage: "trash")
                         }
                     }
