@@ -306,3 +306,69 @@ final class TaskTagsTests: XCTestCase {
         XCTAssertEqual(TaskTags.suggestions(for: "zzz", in: known, excluding: []), [])
     }
 }
+
+// MARK: - Filter
+
+final class TaskFilterTests: XCTestCase {
+
+    private var pacific: Calendar!
+    /// 10:00 PDT on Wednesday the 30th.
+    private let now = ServerDate.parse("2026-09-30T17:00:00Z")!
+
+    private lazy var tasks: [CalendarTask] = [
+        CalendarTask(id: "late", title: "Taxes", dueDate: ServerDate.parse("2026-09-28T00:00:00Z"), priority: 1),
+        CalendarTask(id: "today", title: "Call Mom", dueDate: ServerDate.parse("2026-09-30T00:00:00Z"),
+                     tags: ["family"]),
+        CalendarTask(id: "week", title: "Buy milk", notes: "Oat", dueDate: ServerDate.parse("2026-10-06T00:00:00Z"),
+                     priority: 2, tags: ["errands"]),
+        CalendarTask(id: "later", title: "Renew passport", dueDate: ServerDate.parse("2026-10-07T00:00:00Z")),
+        CalendarTask(id: "undated", title: "Read", tags: ["home", "errands"], location: "Café Zoë"),
+        CalendarTask(id: "doneLate", title: "Old bill", done: true, dueDate: ServerDate.parse("2026-09-01T00:00:00Z")),
+    ]
+
+    override func setUp() {
+        super.setUp()
+        pacific = Calendar(identifier: .gregorian)
+        pacific.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+    }
+
+    private func ids(_ filter: TaskFilter) -> [String] {
+        filter.apply(to: tasks, now: now, calendar: pacific).map(\.id)
+    }
+
+    func testAnEmptyFilterKeepsEverythingInOrder() {
+        XCTAssertFalse(TaskFilter().isActive)
+        XCTAssertEqual(ids(TaskFilter()), tasks.map(\.id))
+        XCTAssertFalse(TaskFilter(text: "  ").isActive, "blank search is no search")
+    }
+
+    func testDueRanges() {
+        XCTAssertEqual(ids(TaskFilter(due: .overdue)), ["late"], "a done task is never overdue")
+        XCTAssertEqual(ids(TaskFilter(due: .today)), ["today"])
+        XCTAssertEqual(ids(TaskFilter(due: .week)), ["today", "week"], "seven days from today, not eight")
+        XCTAssertEqual(ids(TaskFilter(due: .none)), ["undated"])
+    }
+
+    func testPriorityTagsAndDone() {
+        XCTAssertEqual(ids(TaskFilter(priority: 2)), ["week"])
+        XCTAssertEqual(ids(TaskFilter(tags: ["family", "home"])), ["today", "undated"], "any picked tag")
+        XCTAssertEqual(ids(TaskFilter(showDone: false)), ["late", "today", "week", "later", "undated"])
+        XCTAssertTrue(TaskFilter(showDone: false).hasMenuFilters)
+    }
+
+    func testSearchEveryWordAcrossFieldsIgnoringCaseAndAccents() {
+        XCTAssertEqual(ids(TaskFilter(text: "oat")), ["week"], "notes")
+        XCTAssertEqual(ids(TaskFilter(text: "cafe zoe")), ["undated"], "location, accents ignored")
+        XCTAssertEqual(ids(TaskFilter(text: "errands")), ["week", "undated"], "tags")
+        XCTAssertEqual(ids(TaskFilter(text: "buy errands")), ["week"], "every word must match")
+        XCTAssertEqual(ids(TaskFilter(text: "#err")), ["week", "undated"])
+        XCTAssertEqual(ids(TaskFilter(text: "#milk")), [], "a # word searches tags only")
+        XCTAssertTrue(TaskFilter(text: "x").isActive)
+        XCTAssertFalse(TaskFilter(text: "x").hasMenuFilters)
+    }
+
+    func testFiltersCombine() {
+        XCTAssertEqual(ids(TaskFilter(text: "read", tags: ["errands"])), ["undated"])
+        XCTAssertEqual(ids(TaskFilter(due: .week, tags: ["family"])), ["today"])
+    }
+}

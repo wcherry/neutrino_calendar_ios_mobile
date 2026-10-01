@@ -60,6 +60,7 @@
 		975D803277F8B00B8AB1AA6B /* CalendarGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D74E6069C52F83E5B001849 /* CalendarGridTests.swift */; };
 		98CF3843239229D4A91C06FE /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A14F821F815BC8BE459D4FD /* FeatureFlags.swift */; };
 		9936A70053179C599E442398 /* UpNext.swift in Sources */ = {isa = PBXBuildFile; fileRef = E71EE2F4AAAAC2FA968E883C /* UpNext.swift */; };
+		99E2EAA92AB58E97CBBF3014 /* TaskFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18D69E325F26DC3E0565F086 /* TaskFilter.swift */; };
 		9A708431243C1890279032A7 /* EventActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E929B7D663F2958649DC75F1 /* EventActivityAttributes.swift */; };
 		9AA2DE5354ACEBD642C0D582 /* SourceFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF7F6DFA37C843A7509D78CA /* SourceFilter.swift */; };
 		9B27401118A4905F6E55C2EB /* CalendarFocusFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5084692DAB743B9E5A4A8411 /* CalendarFocusFilter.swift */; };
@@ -152,6 +153,7 @@
 		150DFA50DDF60C916D2FCCED /* CalendarTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTask.swift; sourceTree = "<group>"; };
 		1750FA6F3E40F737442C86A8 /* LiveActivities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivities.swift; sourceTree = "<group>"; };
 		18A8FC296625110ACA179B10 /* CalendarGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGrid.swift; sourceTree = "<group>"; };
+		18D69E325F26DC3E0565F086 /* TaskFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskFilter.swift; sourceTree = "<group>"; };
 		1C1C7349A57E84E17BFF7AC8 /* RecurrenceExpander.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceExpander.swift; sourceTree = "<group>"; };
 		1DF1E6AE9CD328CA8249AF97 /* RemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersView.swift; sourceTree = "<group>"; };
 		1E37216B50DD25F28A871BD1 /* DriveFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveFile.swift; sourceTree = "<group>"; };
@@ -357,6 +359,7 @@
 				AB8368FF9E5C3E1B6C18953E /* RepeatRule.swift */,
 				AD07754105D0A9CB9E89921D /* SmartAdd.swift */,
 				AF7F6DFA37C843A7509D78CA /* SourceFilter.swift */,
+				18D69E325F26DC3E0565F086 /* TaskFilter.swift */,
 				3FE2BCF5C7C8975748E25003 /* TaskSpeech.swift */,
 				E71EE2F4AAAAC2FA968E883C /* UpNext.swift */,
 			);
@@ -637,6 +640,7 @@
 				8D8A1F17193D494569A7FCF9 /* SystemSurfaces.swift in Sources */,
 				E69A4C54311DDF04C6C471BA /* TagField.swift in Sources */,
 				D68AF1D61B7C7F02C156FCD1 /* TaskDetailView.swift in Sources */,
+				99E2EAA92AB58E97CBBF3014 /* TaskFilter.swift in Sources */,
 				B19146EE856216CBA7FA6DA1 /* TaskSpeech.swift in Sources */,
 				A5FCC459A9131754274358E7 /* TasksService.swift in Sources */,
 				9451784E61800ADDF6710912 /* TasksView.swift in Sources */,

@@ -2,13 +2,14 @@ import SwiftUI
 
 /// The Tasks tab: a box to type a task into, the open tasks in the order they were arranged, and
 /// the done ones after. One flat list, as on the web; see `CalendarTask` for why there are no
-/// task lists.
+/// task lists. A search field and a filter menu narrow it; see `TaskFilter`.
 struct TasksView: View {
     @EnvironmentObject var tasks: TasksService
 
     @State private var newTitle = ""
     @State private var isAdding = false
     @State private var addError: String?
+    @State private var filter = TaskFilter()
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -40,6 +41,10 @@ struct TasksView: View {
                     .foregroundStyle(.orange)
             }
 
+            if filter.isActive && !tasks.tasks.isEmpty {
+                filterSummary
+            }
+
             if tasks.tasks.isEmpty {
                 if tasks.isLoading && !tasks.hasLoaded {
                     ProgressView().frame(maxWidth: .infinity)
@@ -50,30 +55,89 @@ struct TasksView: View {
                 }
             }
 
-            if !tasks.open.isEmpty {
+            if !open.isEmpty {
                 Section {
-                    ForEach(tasks.open) { row($0) }
-                        .onMove(perform: move)
+                    // Reordering sends the order of every open task, so it waits until they are
+                    // all on screen.
+                    ForEach(open) { row($0) }
+                        .onMove(perform: filter.isActive ? nil : move)
                 }
             }
-            if !tasks.done.isEmpty {
+            if !done.isEmpty {
                 Section("Done") {
-                    ForEach(tasks.done) { row($0) }
+                    ForEach(done) { row($0) }
                 }
             }
         }
+        .searchable(text: $filter.text, prompt: "Search tasks")
         .listStyle(.insetGrouped)
         .densityList()
         .navigationTitle("Tasks")
         .navigationDestination(for: TaskRoute.self) { TaskDetailView(taskID: $0.id) }
         .toolbar {
-            if tasks.open.count > 1 {
+            if tasks.open.count > 1 && !filter.isActive {
                 // Reordering is by drag in edit mode, which also keeps a scroll from moving a row.
                 ToolbarItem(placement: .primaryAction) { EditButton() }
+            }
+            if !tasks.tasks.isEmpty {
+                ToolbarItem(placement: .primaryAction) { filterMenu }
             }
         }
         .refreshable { await tasks.reload() }
         .task { await tasks.reload() }
+    }
+
+    private var shown: [CalendarTask] { filter.apply(to: tasks.tasks) }
+    private var open: [CalendarTask] { shown.filter { !$0.done } }
+    private var done: [CalendarTask] { shown.filter(\.done) }
+
+    /// How much of the list the filter leaves, and the way back to all of it.
+    private var filterSummary: some View {
+        let count = shown.count
+        return HStack {
+            Text(count == 0 ? "No tasks match" : "Showing \(count) of \(tasks.tasks.count)")
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("Clear") { filter = TaskFilter() }
+                .buttonStyle(.borderless)
+        }
+        .font(.footnote)
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            Picker("Due", selection: $filter.due) {
+                ForEach(TaskFilter.Due.allCases) { Text($0.title).tag($0) }
+            }
+            Picker("Priority", selection: $filter.priority) {
+                Text("Any priority").tag(Int?.none)
+                Text("High").tag(Int?.some(1))
+                Text("Medium").tag(Int?.some(2))
+                Text("Low").tag(Int?.some(3))
+            }
+            .pickerStyle(.menu)
+            // A tag picked and then removed from every task stays listed, so it can be unpicked.
+            let tags = tasks.allTags + filter.tags.subtracting(tasks.allTags).sorted()
+            if !tags.isEmpty {
+                Menu("Tags") {
+                    ForEach(tags, id: \.self) { tag in
+                        Toggle("#\(tag)", isOn: Binding(
+                            get: { filter.tags.contains(tag) },
+                            set: { if $0 { filter.tags.insert(tag) } else { filter.tags.remove(tag) } }))
+                    }
+                }
+            }
+            Toggle("Show done", isOn: $filter.showDone)
+            if filter.hasMenuFilters {
+                Button("Clear filters", role: .destructive) {
+                    filter = TaskFilter(text: filter.text)
+                }
+            }
+        } label: {
+            Label("Filter", systemImage: filter.hasMenuFilters
+                  ? "line.3.horizontal.decrease.circle.fill"
+                  : "line.3.horizontal.decrease.circle")
+        }
     }
 
     private func row(_ task: CalendarTask) -> some View {
