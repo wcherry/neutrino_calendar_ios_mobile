@@ -344,8 +344,8 @@ final class TaskFilterTests: XCTestCase {
 
     func testDueRanges() {
         XCTAssertEqual(ids(TaskFilter(due: .overdue)), ["late"], "a done task is never overdue")
-        XCTAssertEqual(ids(TaskFilter(due: .today)), ["today"])
-        XCTAssertEqual(ids(TaskFilter(due: .week)), ["today", "week"], "seven days from today, not eight")
+        XCTAssertEqual(ids(TaskFilter(due: .today)), ["late", "today"], "overdue is due today too")
+        XCTAssertEqual(ids(TaskFilter(due: .week)), ["late", "today", "week"], "seven days from today, not eight")
         XCTAssertEqual(ids(TaskFilter(due: .none)), ["undated"])
     }
 
@@ -370,5 +370,6 @@ final class TaskFilterTests: XCTestCase {
     func testFiltersCombine() {
         XCTAssertEqual(ids(TaskFilter(text: "read", tags: ["errands"])), ["undated"])
         XCTAssertEqual(ids(TaskFilter(due: .week, tags: ["family"])), ["today"])
+        XCTAssertEqual(ids(TaskFilter(due: .today, priority: 1)), ["late"])
     }
 }

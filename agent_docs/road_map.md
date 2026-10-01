@@ -391,7 +391,7 @@ Goal: parity with the web sidebars.
   list in the server's order on both clients. Revisit when tags reach tasks
 * ✅ Attach a Drive file to a task (Epic 14)
 * ✅ Filter tasks: search (title, notes, location, tags; `#tag` for tags only) and a menu for due
-  (overdue, today, next 7 days, no date), priority, tags and showing done. On the device, as the
+  (overdue; today and next 7 days, each with the overdue ones; no date), priority, tags and showing done. On the device, as the
   task list is fetched whole; drag reordering is off while filtered. The web has no filter yet
 * ⬜ Delete a task. The server has no route for it, and the web can't either
 * ⬜ Add tasks from a `.txt` or `.csv` file, as the web can

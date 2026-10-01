@@ -55,15 +55,17 @@ struct TaskFilter: Equatable {
         }
     }
 
-    /// A done task is never overdue: it was finished, whatever its date says.
+    /// Today and the next 7 days include what is overdue, as that is due by then too. A done
+    /// task is never overdue: it was finished, whatever its date says.
     private func matches(_ task: CalendarTask, due today: Date, weekEnd: Date, calendar: Calendar) -> Bool {
         let day = task.dueDay(in: calendar)
+        let overdue = !task.done && day.map { $0 < today } ?? false
         switch due {
         case .any:     return true
         case .none:    return day == nil
-        case .overdue: return !task.done && day.map { $0 < today } ?? false
-        case .today:   return day == today
-        case .week:    return day.map { $0 >= today && $0 < weekEnd } ?? false
+        case .overdue: return overdue
+        case .today:   return overdue || day == today
+        case .week:    return overdue || day.map { $0 >= today && $0 < weekEnd } ?? false
         }
     }
 
