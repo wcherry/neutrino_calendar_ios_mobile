@@ -52,6 +52,20 @@ final class EventsService: ObservableObject {
     /// The sources a Focus filter shows; everything when no Focus has set one. Applied to what
     /// every view reads, not to what is loaded, so ending the Focus needs no reload.
     @Published private(set) var sourceFilter: SourceFilter
+    /// The user's calendars (`CalendarsService`): which are hidden, their colours, which are
+    /// read-only, and the holiday calendars whose days are drawn beside the events.
+    @Published private(set) var calendars: [UserCalendar] = []
+    /// Holiday calendars' days by month, computed on the device, hidden calendars' too.
+    @Published private(set) var holidaysByMonth: [Date: [EventOccurrence]] = [:]
+    /// Every task, for drawing those with a due date (`TaskOccurrences`). Set from `TasksService`.
+    @Published private(set) var tasks: [CalendarTask] = []
+    /// The calendar each event seen so far is in, for leaving out the alerts of events in a
+    /// hidden calendar (`ReminderNotifications`).
+    private(set) var calendarIDsByEvent: [String: String] = [:]
+    /// Tasks drawn per month; thrown away when the tasks change. Not published: it is filled
+    /// while a view reads it.
+    private var tasksByMonth: [Date: [EventOccurrence]] = [:]
+    private let holidays: HolidayEngine
     private let baseCalendar: Calendar
     private let now: () -> Date
 
@@ -59,8 +73,10 @@ final class EventsService: ObservableObject {
                                 category: "EventsService")
 
     init(client: CalendarAPIClient, calendar: Calendar = .current, weekStart: WeekStart = .stored,
-         sourceFilter: SourceFilter = .load(), now: @escaping () -> Date = Date.init) {
+         sourceFilter: SourceFilter = .load(), holidays: HolidayEngine = .shared,
+         now: @escaping () -> Date = Date.init) {
         self.client = client
+        self.holidays = holidays
         self.baseCalendar = calendar
         self.weekStart = weekStart
         self.sourceFilter = sourceFilter
@@ -86,6 +102,34 @@ final class EventsService: ObservableObject {
         sourceFilter = filter
     }
 
+    /// What decides whether an event is drawn: its calendar, and the Focus filter.
+    var filter: EventFilter { EventFilter(rules: rules, focus: sourceFilter) }
+
+    var rules: CalendarRules { CalendarRules(calendars) }
+
+    /// A new list of calendars. Hiding and colours apply at once; the holidays of the loaded
+    /// months are worked out again, since a country, region or observance may have changed.
+    func setCalendars(_ calendars: [UserCalendar]) async {
+        guard calendars != self.calendars else { return }
+        let holidaysChanged = calendars.filter { $0.kind == .holidays }.map(HolidayKey.init)
+            != self.calendars.filter { $0.kind == .holidays }.map(HolidayKey.init)
+        self.calendars = calendars
+        guard holidaysChanged else { return }
+        for month in Set(holidaysByMonth.keys).union(byMonth.keys) { await loadHolidays(month) }
+    }
+
+    /// What a holiday calendar's days depend on; visibility and colour aren't among them.
+    private struct HolidayKey: Equatable {
+        let id: String, country: String?, region: String?, observances: Bool
+        init(_ c: UserCalendar) { (id, country, region, observances) = (c.id, c.country, c.region, c.includeObservances) }
+    }
+
+    func setTasks(_ tasks: [CalendarTask]) {
+        guard tasks != self.tasks else { return }
+        tasksByMonth = [:]
+        self.tasks = tasks
+    }
+
     var today: Date { calendar.startOfDay(for: now()) }
 
     /// The first of the focused month.
@@ -97,20 +141,32 @@ final class EventsService: ObservableObject {
 
     /// The agenda: the focused month's days that have occurrences.
     var sections: [DaySection] {
-        Self.layout(shown(byMonth[month] ?? []), in: month, calendar: calendar)
+        Self.layout(shown(in: month), in: month, calendar: calendar)
     }
 
     /// Everything on `day`, all-day first, then by start, then by title. Empty until the day's
     /// month has loaded.
     func occurrences(on day: Date) -> [EventOccurrence] {
         let month = Self.firstOfMonth(day, calendar: calendar)
-        return shown(byMonth[month] ?? [])
+        return shown(in: month)
             .filter { EventDayRange($0, calendar: calendar).contains(day: day, calendar: calendar) }
             .sorted(by: Self.dayOrder)
     }
 
-    private func shown(_ occurrences: [EventOccurrence]) -> [EventOccurrence] {
-        sourceFilter.isActive ? occurrences.filter { sourceFilter.shows($0.event.source) } : occurrences
+    /// The month's events and holidays its calendars and the Focus filter show, and its tasks.
+    /// Tasks aren't in a calendar, so hiding calendars doesn't hide them.
+    private func shown(in month: Date) -> [EventOccurrence] {
+        let filter = filter
+        let events = ((byMonth[month] ?? []) + (holidaysByMonth[month] ?? [])).filter { filter.shows($0.event) }
+        return events + taskOccurrences(in: month)
+    }
+
+    private func taskOccurrences(in month: Date) -> [EventOccurrence] {
+        if let cached = tasksByMonth[month] { return cached }
+        let range = Self.monthRange(month, calendar: calendar)
+        let occurrences = TaskOccurrences.occurrences(tasks, from: range.from, to: range.to)
+        tasksByMonth[month] = occurrences
+        return occurrences
     }
 
     /// The days `mode` shows around the focus, which decides what has to be loaded.
@@ -199,11 +255,14 @@ final class EventsService: ObservableObject {
         loadingMonths.insert(month)
         error = nil
         defer { loadingMonths.remove(month) }
+        // First, and whatever the network does: holidays are computed here, so they show offline.
+        await loadHolidays(month)
         do {
             // Best effort: without a cursor, the next pull reloads the loaded months instead.
             if cursor == nil { cursor = try? await client.eventChanges(since: nil).cursor }
             let events = try await client.events(from: range.from, to: range.to)
             rawByMonth[month] = events
+            remember(events)
             byMonth[month] = RecurrenceExpander.expand(events, from: range.from, to: range.to,
                                                        calendar: calendar)
             logger.debug("loaded \(events.count) event(s) for a month")
@@ -213,10 +272,36 @@ final class EventsService: ObservableObject {
         }
     }
 
+    private func loadHolidays(_ month: Date) async {
+        let holidayCalendars = calendars.filter { $0.kind == .holidays }
+        guard !holidayCalendars.isEmpty else {
+            if holidaysByMonth[month] != nil { holidaysByMonth[month] = nil }
+            return
+        }
+        let range = Self.monthRange(month, calendar: calendar)
+        holidaysByMonth[month] = await holidays.occurrences(for: holidayCalendars, from: range.from, to: range.to)
+    }
+
+    private func remember(_ events: [CalendarEvent]) {
+        for event in events { calendarIDsByEvent[event.id] = event.calendarId }
+    }
+
+    /// Whether the event with `id` is in a calendar the user has hidden, as far as this device
+    /// knows: an event it hasn't seen counts as shown, as one in an unknown calendar does.
+    func isInHiddenCalendar(eventID: String) -> Bool {
+        guard let calendarID = calendarIDsByEvent[eventID] else { return false }
+        return CalendarRules(calendars).calendar(id: calendarID)?.visible == false
+    }
+
     /// Forgets everything loaded, for sign-out: the next account must never see this one's events.
     func reset() {
         byMonth = [:]
         rawByMonth = [:]
+        holidaysByMonth = [:]
+        tasksByMonth = [:]
+        tasks = []
+        calendars = []
+        calendarIDsByEvent = [:]
         cursor = nil
         loadingMonths = []
         error = nil
@@ -265,6 +350,7 @@ final class EventsService: ObservableObject {
         guard !changed.isEmpty || !deleted.isEmpty else { return }
         for (month, held) in rawByMonth {
             let range = Self.monthRange(month, calendar: calendar)
+            remember(changed)
             let merged = Self.merge(held, changed: changed, deleted: Set(deleted), from: range.from, to: range.to)
             guard merged != held else { continue }
             rawByMonth[month] = merged
@@ -359,6 +445,8 @@ final class EventsService: ObservableObject {
             return try await update(series, from: original, to: draft, overwrite: overwrite)
         case .this:
             request.recurrenceRule = nil
+            // One occurrence can't move calendar on its own; the server refuses it (400).
+            request.calendarId = nil
             guard request != UpdateEventRequest() else { return occurrence.event }
             let saved = try await client.editOccurrence(series: series.id, originalStart: at, request)
             invalidate()
@@ -421,11 +509,14 @@ final class EventsService: ObservableObject {
         return UpNext.upcoming(try await occurrences(from: from, to: to), now: now, calendar: calendar)
     }
 
-    /// Every occurrence in `[from, to]`, expanded, whatever the Focus filter, straight from the
-    /// server rather than the months loaded.
+    /// Every occurrence in `[from, to]`, expanded, whatever the Focus filter or the calendars
+    /// hidden, straight from the server rather than the months loaded, with the holidays in the
+    /// range. The caller applies `filter`.
     func occurrences(from: Date, to: Date) async throws -> [EventOccurrence] {
         let events = try await client.events(from: from, to: to)
+        remember(events)
         return RecurrenceExpander.expand(events, from: from, to: to, calendar: calendar)
+            + (await holidays.occurrences(for: calendars, from: from, to: to))
     }
 
     /// Now, as the service tells it; fixed in tests.

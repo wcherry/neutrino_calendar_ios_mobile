@@ -13,6 +13,8 @@ struct CreateEventRequest: Encodable, Equatable {
     let recurrenceRule: String?
     let attendees: [String]
     let timezone: String?
+    /// Absent, the default calendar.
+    var calendarId: String? = nil
 }
 
 /// `UpdateEventRequest`: every field optional, and an absent one is left alone.
@@ -31,6 +33,8 @@ struct UpdateEventRequest: Encodable, Equatable {
     var recurrenceRule: String?
     var attendees: [String]?
     var timezone: String?
+    /// Moves the event, a series with its exceptions. One occurrence can't move on its own.
+    var calendarId: String?
 }
 
 // MARK: - EventDraft
@@ -50,6 +54,8 @@ struct EventDraft: Equatable {
     var timeZone: TimeZone
     var repeatOption: RepeatOption = .never
     var attendees: [String] = []
+    /// The calendar it goes in. Nil for a new event means the default calendar.
+    var calendarId: String?
 
     /// An hour, the length a new event gets, as on the web.
     static let defaultLength: TimeInterval = 60 * 60
@@ -102,6 +108,7 @@ struct EventDraft: Equatable {
         }
         repeatOption = RepeatOption(rule: event.recurrenceRule)
         attendees = event.attendees
+        calendarId = event.calendarId
     }
 
     /// The form for editing the occurrences of `occurrence` that `scope` names:
@@ -231,7 +238,8 @@ struct EventDraft: Equatable {
             location: nonEmpty(location),
             recurrenceRule: repeatOption.rule,
             attendees: attendees,
-            timezone: wireTimeZone
+            timezone: wireTimeZone,
+            calendarId: calendarId
         )
     }
 
@@ -251,6 +259,7 @@ struct EventDraft: Equatable {
         if wireTimeZone != original.wireTimeZone { request.timezone = wireTimeZone ?? "" }
         if repeatOption != original.repeatOption { request.recurrenceRule = repeatOption.rule ?? "" }
         if attendees != original.attendees { request.attendees = attendees }
+        if let calendarId, calendarId != original.calendarId { request.calendarId = calendarId }
         return request
     }
 
@@ -286,6 +295,7 @@ extension CalendarEvent {
                   recurrenceRule: draft.repeatOption.rule,
                   attendees: draft.attendees,
                   source: event.source,
-                  timezone: draft.wireTimeZone)
+                  timezone: draft.wireTimeZone,
+                  calendarId: draft.calendarId ?? event.calendarId)
     }
 }

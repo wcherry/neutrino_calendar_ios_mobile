@@ -20,6 +20,7 @@ struct NeutrinoCalendarApp: App {
     @StateObject private var sync: CalendarSync
     @StateObject private var attachmentFiles: AttachmentFiles
     @StateObject private var keyProvisioning: KeyProvisioningService
+    @StateObject private var calendars: CalendarsService
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -39,6 +40,7 @@ struct NeutrinoCalendarApp: App {
         _sync = StateObject(wrappedValue: services.sync)
         _attachmentFiles = StateObject(wrappedValue: services.attachmentFiles)
         _keyProvisioning = StateObject(wrappedValue: services.keyProvisioning)
+        _calendars = StateObject(wrappedValue: services.calendars)
 
         // iOS only runs a background task registered before launch finishes.
         BackgroundRefresh.register(auth: services.auth, sync: services.sync, reminders: services.reminders,
@@ -59,6 +61,7 @@ struct NeutrinoCalendarApp: App {
                 .environmentObject(sync.pending)
                 .environmentObject(attachmentFiles)
                 .environmentObject(keyProvisioning)
+                .environmentObject(calendars)
                 // A Spotlight result opens its event.
                 .onContinueUserActivity(CSSearchableItemActionType) { activity in
                     guard let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
@@ -161,6 +164,11 @@ private struct RootContentView: View {
             guard authService.isAuthenticated, remindersService.hasLoaded else { return }
             Task { await notifications.apply(reminders) }
         }
+        // A calendar hidden or shown hides or brings back its events' alerts.
+        .onReceive(eventsService.$calendars.dropFirst()) { _ in
+            guard authService.isAuthenticated, remindersService.hasLoaded else { return }
+            Task { await notifications.apply(remindersService.reminders) }
+        }
         .onChange(of: authService.isAuthenticated) { isAuthenticated in
             if !isAuthenticated {
                 sync.stop()
@@ -169,6 +177,7 @@ private struct RootContentView: View {
                 eventsService.reset()
                 remindersService.reset()
                 tasksService.reset()
+                AppServices.shared.calendars.reset()
                 // The next account must not be reminded of this one's reminders, or find its
                 // events in Spotlight.
                 Task { await notifications.removeAll() }

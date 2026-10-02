@@ -531,6 +531,41 @@ the series.
 
 ⸻
 
+### ✅ Epic 22 — Calendars, Holidays and Tasks on the Calendar
+
+Issue #24; server and web in wcherry/neutrino#244 (`feature/calendars-and-holidays`), design in
+`neutrino/agent_docs/calendars.md`.
+
+* ✅ Every event is in a calendar (`UserCalendar`, `calendarId`). `CalendarRules` is the web's
+  `visibleEvents` / `isReadOnlyEvent` / `writableCalendars`: a hidden calendar's events leave the
+  views, the widgets, the Live Activity, Spotlight and their reminders' alerts; an event in no
+  known calendar is shown. The list is kept on disk, so colours and hiding hold offline, and
+  listed again on launch, foreground and every sync (calendars aren't in the changes feed)
+* ✅ Events in their calendar's colour: list rows, month dots, the time grid, the widgets
+* ✅ Settings › Calendar › Calendars: show/hide (applied at once, put back on error), rename,
+  recolour (the web's eight colours), add, delete with its events (never the default; a
+  provider's only once disconnected)
+* ✅ Event editor: a Calendar picker of the writable calendars, new events in the default; none
+  for "This event", since an occurrence can't move alone; `calendarId` sent only when changed
+* ✅ Read-only: no Edit (and so no Delete) for a holiday or an event in a read-only calendar,
+  marked "Read-only" in the detail. A queued offline write the server refuses with 403 is
+  dropped and the user told, not retried
+* ✅ Holidays (#237): a country list, region, observances, colour, show/hide, remove. Days are
+  computed on the device by the web's own `date-holidays` (its UMD bundle at the web's version,
+  `scripts/sync_date_holidays.sh`) run in JavaScriptCore (`HolidayEngine`), named in the device's
+  full locale; never stored or sent. Rules data CC BY-SA 3.0, credited in Settings. Tested
+  against the web's `calendars.test.ts` expectations
+* ✅ Tasks with a due date drawn on the calendar (`TaskOccurrences`, the web's `taskEvents`): a
+  date is all-day, a time lasts its estimate or 30 minutes; scheduled tasks appear once, as their
+  event. A checkbox completes at once and unticks on failure; done tasks stay, struck through.
+  Amber, unlike any calendar colour, and not hidden by hiding calendars. A tap opens the task
+* ⬜ Focus filter by calendar rather than by source. For now the two combine: an event shows only
+  if both its calendar and the Focus allow it; holidays and tasks count as Neutrino's own
+* ⬜ Edit synced provider events (the web allows it; needs the server to write back, Epic 17)
+* ⬜ Open tasks in the Today / Up Next widgets
+
+⸻
+
 ## Phase 7 — Polish
 
 * ⬜ Face ID / Touch ID lock (reuse `AppLockService` and `LockScreenView` from Notes, or better,

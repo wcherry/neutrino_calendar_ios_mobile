@@ -79,16 +79,26 @@ struct TimeGridView: View {
                 ForEach(Array(zip(days, perDay)), id: \.0) { _, occurrences in
                     VStack(spacing: 2) {
                         ForEach(occurrences.prefix(2)) { occurrence in
+                            let color = EventStyle.color(of: occurrence, rules: events.rules)
                             NavigationLink(value: occurrence) {
                                 Text(occurrence.event.title)
                                     .font(.caption2.weight(.medium))
+                                    .strikethrough(occurrence.task?.done == true)
                                     .lineLimit(1)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 3)
+                                    // Room for the checkbox laid over a task's chip.
+                                    .padding(.leading, occurrence.task == nil ? 3 : 17)
+                                    .padding(.trailing, 3)
                                     .padding(.vertical, 2)
-                                    .background(Color.accentColor.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
+                                    .background(color.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
                             }
                             .buttonStyle(.plain)
+                            // Beside the link, not inside it, so a tick doesn't also open the task.
+                            .overlay(alignment: .leading) {
+                                if let task = occurrence.task {
+                                    TaskCheckbox(task: task, size: .caption).padding(.leading, 2)
+                                }
+                            }
                         }
                         if occurrences.count > 2 {
                             Text("+\(occurrences.count - 2)")
@@ -112,6 +122,7 @@ struct TimeGridView: View {
             ForEach(days, id: \.self) { day in
                 DayColumn(day: day,
                           placed: TimeGridLayout.layout(events.occurrences(on: day), on: day, calendar: calendar),
+                          rules: events.rules,
                           hourHeight: hourHeight,
                           calendar: calendar,
                           showsTime: days.count == 1)
@@ -172,6 +183,7 @@ struct TimeGridView: View {
 private struct DayColumn: View {
     let day: Date
     let placed: [TimeGridLayout.Placed]
+    let rules: CalendarRules
     let hourHeight: CGFloat
     let calendar: Calendar
     let showsTime: Bool
@@ -185,10 +197,17 @@ private struct DayColumn: View {
                     let columnWidth = width / CGFloat(block.columns)
                     NavigationLink(value: block.occurrence) {
                         EventBlock(occurrence: block.occurrence,
+                                   color: EventStyle.color(of: block.occurrence, rules: rules),
                                    height: height(block),
                                    showsTime: showsTime)
                     }
                     .buttonStyle(.plain)
+                    // Beside the link, not inside it, so a tick doesn't also open the task.
+                    .overlay(alignment: .topLeading) {
+                        if let task = block.occurrence.task {
+                            TaskCheckbox(task: task, size: .caption).padding(.leading, 5).padding(.top, 2)
+                        }
+                    }
                     .frame(width: max(columnWidth - 2, 1), height: height(block))
                     .offset(x: columnWidth * CGFloat(block.column) + 1,
                             y: CGFloat(block.startMinute) / 60 * hourHeight)
@@ -210,16 +229,21 @@ private struct DayColumn: View {
 
 private struct EventBlock: View {
     let occurrence: EventOccurrence
+    /// Its calendar's, or the task colour.
+    let color: Color
     let height: CGFloat
     let showsTime: Bool
 
     var body: some View {
         HStack(spacing: 0) {
-            Rectangle().fill(Color.accentColor).frame(width: 3)
+            Rectangle().fill(color).frame(width: 3)
             VStack(alignment: .leading, spacing: 1) {
                 Text(occurrence.event.title)
                     .font(.caption2.weight(.semibold))
+                    .strikethrough(occurrence.task?.done == true)
                     .lineLimit(height > 40 ? 2 : 1)
+                    // Room for the checkbox laid over a task's block.
+                    .padding(.leading, occurrence.task == nil ? 0 : 14)
                 if showsTime && height > 30 {
                     Text(EventFormatting.timeSummary(occurrence))
                         .font(.caption2)
@@ -232,7 +256,7 @@ private struct EventBlock: View {
             Spacer(minLength: 0)
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color.accentColor.opacity(0.18))
+        .background(color.opacity(0.18))
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .accessibilityElement(children: .combine)
     }

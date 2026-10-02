@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var encryptionFlow: EncryptionFlow?
     @State private var encryptionRevision = 0
     @EnvironmentObject var events: EventsService
+    @EnvironmentObject var calendars: CalendarsService
     @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.default.rawValue
 
     var body: some View {
@@ -53,13 +54,18 @@ struct SettingsView: View {
             }
 
             Section {
+                NavigationLink {
+                    CalendarsSettingsView()
+                } label: {
+                    LabeledContent("Calendars", value: "\(calendars.calendars.count)")
+                }
                 Picker("Week starts on", selection: $weekStart) {
                     ForEach(WeekStart.allCases) { Text($0.label).tag($0.rawValue) }
                 }
             } header: {
                 Text("Calendar")
             } footer: {
-                Text("Used by the month, week and year views and every date picker, as on the web.")
+                Text("Show or hide calendars, change their colours, and add public holidays. The week start is used by the month, week and year views and every date picker, as on the web.")
             }
             .onChange(of: weekStart) { raw in
                 events.setWeekStart(WeekStart(rawValue: raw) ?? .default)

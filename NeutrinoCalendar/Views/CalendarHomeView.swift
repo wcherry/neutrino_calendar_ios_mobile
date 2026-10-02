@@ -20,7 +20,14 @@ struct CalendarHomeView: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
-            .navigationDestination(for: EventOccurrence.self) { EventDetailView(occurrence: $0) }
+            // A task drawn on the calendar opens the task, not an event it doesn't have.
+            .navigationDestination(for: EventOccurrence.self) { occurrence in
+                if let task = occurrence.task {
+                    TaskDetailView(taskID: task.id)
+                } else {
+                    EventDetailView(occurrence: occurrence)
+                }
+            }
             .sheet(isPresented: $jumping) { JumpToDateSheet() }
             .sheet(item: $creating) { EventEditorView(mode: $0) }
             // Loads whatever the mode now covers: a new mode, a new focus, or a cache thrown away
@@ -43,6 +50,11 @@ struct CalendarHomeView: View {
     private func openRequested() async {
         guard let link = router.openEvent else { return }
         router.openEvent = nil
+        // A holiday (from a widget) has no event on the server: its day is what opens.
+        if link.eventID.hasPrefix("holiday:") {
+            events.select(EventDayRange(start: link.start, end: link.start, allDay: true, calendar: events.calendar).first)
+            return
+        }
         do {
             let event = try await events.event(id: link.eventID)
             // An occurrence changed on its own is its exception; it opens as part of its series.
@@ -215,37 +227,103 @@ struct DayHeader: View {
 
 // MARK: - EventRowView
 
+/// One occurrence in a list: a bar in its calendar's colour, or a checkbox for a task on the
+/// calendar, then the title, time and place.
 struct EventRowView: View {
+    @EnvironmentObject var events: EventsService
     let occurrence: EventOccurrence
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(occurrence.event.title)
-                    .font(.body.weight(.medium))
-                    .lineLimit(2)
-                if occurrence.isRepeating {
-                    Image(systemName: "repeat")
+        HStack(alignment: .top, spacing: 10) {
+            if let task = occurrence.task {
+                TaskCheckbox(task: task)
+            } else {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(EventStyle.color(of: occurrence, rules: events.rules))
+                    .frame(width: 4)
+                    .padding(.vertical, 2)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(occurrence.event.title)
+                        .font(.body.weight(.medium))
+                        .strikethrough(occurrence.task?.done == true)
+                        .foregroundStyle(occurrence.task?.done == true ? .secondary : .primary)
+                        .lineLimit(2)
+                    if occurrence.isRepeating {
+                        Image(systemName: "repeat")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Repeats")
+                    }
+                    Spacer(minLength: 0)
+                    if let badge = occurrence.event.source.badge {
+                        SourceBadge(text: badge)
+                    }
+                }
+                Text(occurrence.task == nil ? EventFormatting.timeSummary(occurrence)
+                                            : EventStyle.taskTimeSummary(occurrence))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if let location = occurrence.event.location, !location.isEmpty {
+                    Label(location, systemImage: "mappin.and.ellipse")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .accessibilityLabel("Repeats")
+                        .lineLimit(1)
                 }
-                Spacer(minLength: 0)
-                if let badge = occurrence.event.source.badge {
-                    SourceBadge(text: badge)
-                }
-            }
-            Text(EventFormatting.timeSummary(occurrence))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            if let location = occurrence.event.location, !location.isEmpty {
-                Label(location, systemImage: "mappin.and.ellipse")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - EventStyle
+
+/// How events and tasks look on the calendar: an event in its calendar's colour, a task in a
+/// colour of its own that no calendar is offered (the web uses its warning amber), so the two
+/// never read as one another.
+enum EventStyle {
+    static let taskColor = Color(red: 0.96, green: 0.62, blue: 0.04) // #f59e0b
+
+    static func color(of occurrence: EventOccurrence, rules: CalendarRules) -> Color {
+        if occurrence.task != nil { return taskColor }
+        return Color(hex: rules.color(of: occurrence.event)) ?? .accentColor
+    }
+
+    /// A task's row in a list sits on its own tint.
+    static func rowBackground(_ occurrence: EventOccurrence) -> Color? {
+        occurrence.task == nil ? nil : taskColor.opacity(0.12)
+    }
+
+    /// "Task due" or "Due 3:00 PM".
+    static func taskTimeSummary(_ occurrence: EventOccurrence) -> String {
+        if occurrence.event.allDay { return "Task due" }
+        return "Due \(occurrence.start.formatted(date: .omitted, time: .shortened))"
+    }
+}
+
+// MARK: - TaskCheckbox
+
+/// Ticks a task done, or open again, straight from the calendar. The tick shows at once and is
+/// taken back if the server refuses (`TasksService.setDone`); the task stays on the calendar,
+/// struck through, so it doesn't vanish from under the finger.
+struct TaskCheckbox: View {
+    @EnvironmentObject var tasks: TasksService
+    let task: CalendarTask
+    var size: Font = .title3
+
+    var body: some View {
+        // The live copy, so a tick made elsewhere shows here too.
+        let current = tasks.task(id: task.id) ?? task
+        Button {
+            Task { await tasks.setDone(current, !current.done) }
+        } label: {
+            Image(systemName: current.done ? "checkmark.circle.fill" : "circle")
+                .font(size)
+                .foregroundStyle(EventStyle.taskColor)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(current.done ? "Mark \(task.title) as not done" : "Mark \(task.title) as done")
     }
 }
 

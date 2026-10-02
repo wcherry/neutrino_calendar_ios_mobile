@@ -167,6 +167,7 @@ final class CalendarSync: ObservableObject {
     private let events: EventsService
     private let reminders: RemindersService
     private let tasks: TasksService
+    private let calendars: CalendarsService?
     private let surfaces: SystemSurfaces?
     private var cancellables: Set<AnyCancellable> = []
     private var wasOnline = true
@@ -177,13 +178,14 @@ final class CalendarSync: ObservableObject {
 
     init(client: CalendarAPIClient, signals: CalendarSignalsClient, pending: PendingWrites,
          events: EventsService, reminders: RemindersService, tasks: TasksService,
-         surfaces: SystemSurfaces? = nil) {
+         calendars: CalendarsService? = nil, surfaces: SystemSurfaces? = nil) {
         self.client = client
         self.signals = signals
         self.pending = pending
         self.events = events
         self.reminders = reminders
         self.tasks = tasks
+        self.calendars = calendars
         self.surfaces = surfaces
         events.pending = pending
         reminders.pending = pending
@@ -246,9 +248,12 @@ final class CalendarSync: ObservableObject {
 
     /// Something changed elsewhere.
     func refresh() async {
+        // Calendars aren't in the changes feed, and there are few: listed again every time.
+        await calendars?.reload()
         await events.pullChanges()
         await reminders.reload()
-        if tasks.hasLoaded { await tasks.reload() }
+        // Tasks load at launch, not only when the Tasks tab opens: they are drawn on the calendar.
+        await tasks.reload()
         await surfaces?.refresh()
     }
 }

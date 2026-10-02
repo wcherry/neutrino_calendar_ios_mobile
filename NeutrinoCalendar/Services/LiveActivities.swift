@@ -24,9 +24,9 @@ final class LiveActivities {
         UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true
     }
 
-    /// The occurrence to show: the next timed one the Focus filter shows, if it is under way or
+    /// The occurrence to show: the next timed one the calendars and the Focus filter show, if it is under way or
     /// starts within `leadTime`. Anything in `upcoming` already over by `now` is skipped.
-    static func candidate(_ upcoming: [EventOccurrence], now: Date, filter: SourceFilter) -> EventOccurrence? {
+    static func candidate(_ upcoming: [EventOccurrence], now: Date, filter: EventFilter) -> EventOccurrence? {
         guard let next = UpNext.next(upcoming.filter { $0.end > now }, filter: filter),
               next.start <= now.addingTimeInterval(leadTime) else { return nil }
         return next

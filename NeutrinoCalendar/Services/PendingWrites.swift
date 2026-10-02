@@ -36,6 +36,9 @@ struct PendingWrite: Codable, Identifiable, Equatable {
 final class PendingWrites: ObservableObject {
 
     @Published private(set) var writes: [PendingWrite] = []
+    /// Why queued changes were discarded, until the user dismisses it: a write the server
+    /// refused for good (403, the calendar is read-only) would otherwise vanish without a word.
+    @Published var notice: String?
 
     /// A write the server keeps failing with a 5xx is dropped after this many tries, so one bad
     /// write can't hold up every one queued behind it.
@@ -72,6 +75,7 @@ final class PendingWrites: ObservableObject {
     /// Forgets every queued write, for sign-out: the next account must not send this one's edits.
     func clear() {
         writes = []
+        dismissNotice()
         save()
     }
 
@@ -95,7 +99,9 @@ final class PendingWrites: ObservableObject {
                     if writes[0].attempts < Self.maxAttempts { break }
                 }
                 // A 404 means it was deleted elsewhere; any other 4xx is a write the server will
-                // never take. Either way, sending it again cannot help.
+                // never take. Either way, sending it again cannot help. A 403 is an event whose
+                // calendar is read-only now, which the user should hear about.
+                if error == .serverError(statusCode: 403) { noteReadOnly() }
                 logger.error("dropping \(write.method, privacy: .public) \(write.path, privacy: .public): \(error, privacy: .public)")
             } catch {
                 logger.error("dropping \(write.path, privacy: .public): \(error, privacy: .public)")
@@ -107,6 +113,20 @@ final class PendingWrites: ObservableObject {
             finished += 1
         }
         return finished
+    }
+
+    private func noteReadOnly() {
+        rejected += 1
+        notice = rejected == 1
+            ? "A change made offline wasn't saved: the event is in a read-only calendar."
+            : "\(rejected) changes made offline weren't saved: their events are in read-only calendars."
+    }
+
+    private var rejected = 0
+
+    func dismissNotice() {
+        notice = nil
+        rejected = 0
     }
 
     private func save() {

@@ -58,5 +58,7 @@ struct ContentView: View {
         .environmentObject(TasksService(client: CalendarAPIClient(token: { nil })))
         .environmentObject(ReminderNotifications())
         .environmentObject(AppRouter())
+        .environmentObject(CalendarsService(client: CalendarAPIClient(token: { nil }),
+                                            cacheURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview-calendars.json")))
         .environmentObject(PendingWrites(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview-pending.json")))
 }

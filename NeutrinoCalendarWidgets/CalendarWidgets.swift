@@ -111,7 +111,7 @@ enum WidgetFormat {
     }
 }
 
-/// One event in a list: a coloured bar, the title, and its time.
+/// One event in a list: a bar in its calendar's colour, the title, and its time.
 struct EventLine: View {
     let event: WidgetEvent
     let date: Date
@@ -121,7 +121,7 @@ struct EventLine: View {
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             RoundedRectangle(cornerRadius: 1.5)
-                .fill(WidgetStyle.accent)
+                .fill(Color(hex: event.color) ?? WidgetStyle.accent)
                 .frame(width: 3)
             VStack(alignment: .leading, spacing: 1) {
                 Text(event.title)

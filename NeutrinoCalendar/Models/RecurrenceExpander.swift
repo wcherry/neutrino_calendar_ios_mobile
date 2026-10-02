@@ -16,13 +16,17 @@ struct EventOccurrence: Identifiable, Hashable {
     let series: CalendarEvent?
     /// Where in its series the occurrence falls, before any edit of it; nil for a one-off event.
     let originalStart: Date?
+    /// The task this stands for, when it is a task drawn on the calendar (`TaskOccurrences`).
+    let task: CalendarTask?
 
-    init(event: CalendarEvent, start: Date, end: Date, series: CalendarEvent? = nil, originalStart: Date? = nil) {
+    init(event: CalendarEvent, start: Date, end: Date, series: CalendarEvent? = nil, originalStart: Date? = nil,
+         task: CalendarTask? = nil) {
         self.event = event
         self.start = start
         self.end = end
         self.series = series
         self.originalStart = originalStart
+        self.task = task
     }
 
     var id: String { "\(series?.id ?? event.id)@\((originalStart ?? start).timeIntervalSince1970)" }

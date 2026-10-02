@@ -52,6 +52,7 @@ struct AgendaView: View {
                                 NavigationLink(value: occurrence) {
                                     EventRowView(occurrence: occurrence)
                                 }
+                                .listRowBackground(EventStyle.rowBackground(occurrence))
                                 .densityRow()
                             }
                         } header: {

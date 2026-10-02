@@ -34,6 +34,9 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
     let originalStart: Date?
     /// An exception that deletes its occurrence.
     let cancelled: Bool
+    /// The calendar it is in (`UserCalendar`). Nil from a server older than calendars, which
+    /// puts everything in the default calendar.
+    let calendarId: String?
 
     /// Whether this is a series: an event with a rule. An exception is never one.
     var isRecurring: Bool { !(recurrenceRule ?? "").isEmpty }
@@ -41,7 +44,7 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case id, title, description, startTime, endTime, allDay, location, recurrenceRule
         case attendees, source, createdAt, updatedAt, timezone
-        case recurringEventId, originalStartTime, cancelled
+        case recurringEventId, originalStartTime, cancelled, calendarId
     }
 
     init(from decoder: Decoder) throws {
@@ -62,13 +65,15 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
         recurringEventId = try c.decodeIfPresent(String.self, forKey: .recurringEventId)
         originalStart = (try? c.decodeIfPresent(String.self, forKey: .originalStartTime)).flatMap(ServerDate.parse)
         cancelled = try c.decodeIfPresent(Bool.self, forKey: .cancelled) ?? false
+        calendarId = try c.decodeIfPresent(String.self, forKey: .calendarId)
     }
 
     /// For tests and previews.
     init(id: String, title: String, description: String? = nil, start: Date, end: Date,
          allDay: Bool = false, location: String? = nil, recurrenceRule: String? = nil,
          attendees: [String] = [], source: EventSource = .local, timezone: String? = nil,
-         recurringEventId: String? = nil, originalStart: Date? = nil, cancelled: Bool = false) {
+         recurringEventId: String? = nil, originalStart: Date? = nil, cancelled: Bool = false,
+         calendarId: String? = nil) {
         self.id = id
         self.title = title
         self.description = description
@@ -85,6 +90,7 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
         self.recurringEventId = recurringEventId
         self.originalStart = originalStart
         self.cancelled = cancelled
+        self.calendarId = calendarId
     }
 
     /// `event` with other times and rule: an occurrence of it, or the series as it runs from one.
@@ -93,7 +99,7 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
                   allDay: event.allDay, location: event.location, recurrenceRule: recurrenceRule,
                   attendees: event.attendees, source: event.source, timezone: event.timezone,
                   recurringEventId: event.recurringEventId, originalStart: event.originalStart,
-                  cancelled: event.cancelled)
+                  cancelled: event.cancelled, calendarId: event.calendarId)
     }
 
     private static func decodeDate(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) throws -> Date {
@@ -113,25 +119,34 @@ struct ListEventsResponse: Decodable {
 // MARK: - EventSource
 
 /// Where an event came from. The server writes `local` for events made in Neutrino and the
-/// provider's name for synced ones (`src/calendar/connections/`).
+/// provider's name for synced ones (`src/calendar/connections/`). Two are never stored: a
+/// holiday, computed on the device (`HolidayEngine`), and a task drawn on the calendar
+/// (`TaskOccurrences`). The web uses the same names (`HOLIDAY_SOURCE`, `TASK_SOURCE`).
 enum EventSource: Hashable {
     case local, google, outlook, apple
+    case holidays, task
     case other(String)
 
     init(rawValue: String) {
         switch rawValue.lowercased() {
-        case "local":   self = .local
-        case "google":  self = .google
-        case "outlook": self = .outlook
-        case "apple":   self = .apple
-        default:        self = .other(rawValue)
+        case "local":    self = .local
+        case "google":   self = .google
+        case "outlook":  self = .outlook
+        case "apple":    self = .apple
+        case "holidays": self = .holidays
+        case "task":     self = .task
+        default:         self = .other(rawValue)
         }
     }
+
+    /// Computed on the device, with no server row behind it: nothing to fetch, edit, delete,
+    /// remind about or attach to.
+    var isComputed: Bool { self == .holidays || self == .task }
 
     /// The badge shown on a synced event. `nil` for Neutrino's own events, which need none.
     var badge: String? {
         switch self {
-        case .local:            return nil
+        case .local, .holidays, .task: return nil
         case .google:           return "Google"
         case .outlook:          return "Outlook"
         case .apple:            return "iCloud"

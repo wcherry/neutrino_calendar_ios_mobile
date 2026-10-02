@@ -23,6 +23,7 @@ struct EventEditorView: View {
 
     @EnvironmentObject var events: EventsService
     @EnvironmentObject var tasks: TasksService
+    @EnvironmentObject var calendars: CalendarsService
     @Environment(\.dismiss) private var dismiss
 
     let mode: Mode
@@ -74,6 +75,29 @@ struct EventEditorView: View {
                 Section {
                     TextField("Title", text: $draft.title)
                     TextField("Location", text: $draft.location)
+                }
+
+                // One occurrence can't move calendar on its own, so a "This event" edit has none.
+                if scope != .this, calendars.writable.count > 1 {
+                    Section {
+                        Picker("Calendar", selection: calendarBinding) {
+                            ForEach(calendars.writable) { calendar in
+                                Label {
+                                    Text(calendar.name)
+                                } icon: {
+                                    Image(systemName: "circle.fill")
+                                        .foregroundStyle(Color(hex: calendar.color) ?? .accentColor)
+                                }
+                                .tag(Optional(calendar.id))
+                            }
+                        }
+                    } footer: {
+                        switch scope {
+                        case .all?:       Text("Moving it moves every event in the series.")
+                        case .following?: Text("Moving it moves this event and every one after it.")
+                        default:          EmptyView()
+                        }
+                    }
                 }
 
                 Section {
@@ -206,6 +230,13 @@ struct EventEditorView: View {
     }
 
     private var deleteLabel: String { "Delete Event" }
+
+    /// The draft's calendar, or the default one for a new event, which is where the server puts
+    /// an event that names none.
+    private var calendarBinding: Binding<String?> {
+        Binding(get: { draft.calendarId ?? calendars.defaultCalendar?.id },
+                set: { draft.calendarId = $0 })
+    }
 
     /// The standard choices, plus the event's own rule when the form can't show it, so it is kept.
     private var repeatChoices: [RepeatOption] {

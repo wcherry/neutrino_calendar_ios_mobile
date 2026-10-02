@@ -148,7 +148,7 @@ final class SiriSpotlightTests: XCTestCase {
             occurrence("mine", "2026-09-15T22:00:00Z", "2026-09-15T23:00:00Z"),
         ], now: now, calendar: calendar)
         XCTAssertEqual(UpNext.next(upcoming, filter: .all)?.event.id, "google")
-        XCTAssertEqual(UpNext.next(upcoming, filter: SourceFilter(shown: [.neutrino]))?.event.id, "mine")
+        XCTAssertEqual(UpNext.next(upcoming, filter: EventFilter(rules: .none, focus: SourceFilter(shown: [.neutrino])))?.event.id, "mine")
         XCTAssertNil(UpNext.next([upcoming[0]], filter: .all))
     }
 

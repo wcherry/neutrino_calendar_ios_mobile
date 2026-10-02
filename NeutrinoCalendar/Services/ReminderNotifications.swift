@@ -18,6 +18,9 @@ final class ReminderNotifications: NSObject, ObservableObject {
     weak var reminders: RemindersService?
     /// Called with a reminder's id when its notification is tapped.
     var onOpen: ((String) -> Void)?
+    /// Whether a reminder belongs to an event in a calendar the user has hidden, whose alerts
+    /// are hidden with it. Set at launch from `EventsService`.
+    var isHidden: (Reminder) -> Bool = { _ in false }
 
     static let enabledKey = "ncal.notifications.enabled"
     static let category = "REMINDER"
@@ -63,7 +66,7 @@ final class ReminderNotifications: NSObject, ObservableObject {
             await removeAll()
             return
         }
-        let plan = NotificationPlan.plan(reminders, now: now)
+        let plan = NotificationPlan.plan(reminders.filter { !isHidden($0) }, now: now)
         await refreshAuthorization()
         if authorization == .notDetermined, !plan.isEmpty {
             _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
