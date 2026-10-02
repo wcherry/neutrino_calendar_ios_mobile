@@ -5,12 +5,26 @@ import SwiftUI
 /// task lists. A search field and a filter menu narrow it; see `TaskFilter`.
 struct TasksView: View {
     @EnvironmentObject var tasks: TasksService
+    @EnvironmentObject var places: PlacesService
+    @EnvironmentObject var geofences: GeofenceMonitor
+    @EnvironmentObject var notifications: ReminderNotifications
+    @EnvironmentObject var router: AppRouter
 
     @State private var newTitle = ""
     @State private var isAdding = false
     @State private var addError: String?
     @State private var filter = TaskFilter()
+    /// Where you are, for Nearby; nil until it is known.
+    @State private var here: GeoPoint?
+    @State private var locating = false
+    /// A map result for an `@place` that named no saved place, waiting for a yes.
+    @State private var arrivalOffer: ArrivalOffer?
     @FocusState private var composerFocused: Bool
+
+    struct ArrivalOffer: Equatable {
+        let task: CalendarTask
+        let result: PlaceSearchResult
+    }
 
     var body: some View {
         List {
@@ -22,7 +36,7 @@ struct TasksView: View {
                     .disabled(isAdding)
                     .autocorrectionDisabled()
                 if let parsed, parsed.hasDetails {
-                    SmartAddPreview(parsed: parsed)
+                    SmartAddPreview(parsed: parsed, place: parsed.location.flatMap(places.match)?.name)
                 } else if composerFocused && newTitle.isEmpty {
                     Text("Try ^fri 3pm #tag !1 *weekly")
                         .font(.caption)
@@ -32,6 +46,9 @@ struct TasksView: View {
                     Label(addError, systemImage: "exclamationmark.triangle")
                         .font(.footnote)
                         .foregroundStyle(.orange)
+                }
+                if let arrivalOffer {
+                    offerRow(arrivalOffer)
                 }
             }
 
@@ -55,7 +72,9 @@ struct TasksView: View {
                 }
             }
 
-            if !open.isEmpty {
+            if let range = filter.nearby {
+                nearbySection(range)
+            } else if !open.isEmpty {
                 Section {
                     // Reordering sends the order of every open task, so it waits until they are
                     // all on screen.
@@ -63,7 +82,7 @@ struct TasksView: View {
                         .onMove(perform: filter.isActive ? nil : move)
                 }
             }
-            if !done.isEmpty {
+            if !done.isEmpty && filter.nearby == nil {
                 Section("Done") {
                     ForEach(done) { row($0) }
                 }
@@ -84,7 +103,114 @@ struct TasksView: View {
             }
         }
         .refreshable { await tasks.reload() }
-        .task { await tasks.reload() }
+        .task {
+            await tasks.reload()
+            if !places.hasLoaded { await places.reload() }
+            openRequested()
+        }
+        .task(id: filter.nearby) { await locate() }
+        // A tapped arrival alert opens its task.
+        .onChange(of: router.openTaskID) { _ in openRequested() }
+    }
+
+    private func openRequested() {
+        guard let id = router.openTaskID, tasks.task(id: id) != nil else { return }
+        router.openTaskID = nil
+        router.tasksPath = NavigationPath([TaskRoute(id: id)])
+    }
+
+    // MARK: - Nearby
+
+    private func locate() async {
+        guard filter.nearby != nil else { return }
+        geofences.requestWhenInUse()
+        locating = true
+        defer { locating = false }
+        here = await geofences.currentLocation() ?? geofences.location
+    }
+
+    @ViewBuilder
+    private func nearbySection(_ range: NearbyTasks.Range) -> some View {
+        Section {
+            if let here {
+                let entries = NearbyTasks.list(filter.apply(to: tasks.tasks), places: places.places,
+                                               from: here, within: range.meters)
+                ForEach(entries, id: \.task.id) { entry in
+                    NavigationLink(value: TaskRoute(id: entry.task.id)) {
+                        TaskRow(task: entry.task, distance: entry.distance)
+                    }
+                    .densityRow()
+                }
+                if entries.isEmpty {
+                    Text("No open tasks with a place \(range.title.lowercased())")
+                        .foregroundStyle(.secondary)
+                }
+            } else if locating {
+                ProgressView().frame(maxWidth: .infinity)
+            } else {
+                Text(geofences.authorization == .denied || geofences.authorization == .restricted
+                     ? "Turn on location access for Calendar in Settings to see tasks near you."
+                     : "Your location isn't available right now.")
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Nearby")
+        } footer: {
+            if places.unreadable > 0 {
+                Text("Tasks at \(places.unreadable) saved place(s) this iPhone can't decrypt aren't shown.")
+            }
+        }
+    }
+
+    // MARK: - Smart Add places
+
+    /// "Remind you at Safeway?" — the top map result for an `@place` that named no saved place.
+    /// Never attached without this yes.
+    private func offerRow(_ offer: ArrivalOffer) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Remind you when you arrive at \(offer.result.name)?")
+                    if !offer.result.detail.isEmpty {
+                        Text(offer.result.detail).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } icon: {
+                Image(systemName: "location.circle")
+            }
+            HStack {
+                Button("Remind Me") { Task { await accept(offer) } }
+                    .buttonStyle(.borderedProminent)
+                Button("Not Now") { arrivalOffer = nil }
+                    .buttonStyle(.bordered)
+            }
+            .controlSize(.small)
+        }
+        .font(.subheadline)
+        .padding(.vertical, 4)
+    }
+
+    private func accept(_ offer: ArrivalOffer) async {
+        arrivalOffer = nil
+        do {
+            try await tasks.setGeofence(tasks.task(id: offer.task.id) ?? offer.task, .point(offer.result.point))
+            askForAlerts()
+        } catch {
+            addError = "Couldn't add the place to that task."
+        }
+    }
+
+    /// The first geofence is when Always location and notifications start to matter.
+    private func askForAlerts() {
+        geofences.requestAlways()
+        Task { await notifications.requestAuthorizationIfNeeded() }
+    }
+
+    /// Looks up what `@text` names on the map, once the task exists. In the background, so a
+    /// slow search never holds up typing the next task.
+    private func offerPlace(for task: CalendarTask, named text: String) async {
+        guard let result = try? await PlaceSearch.search(text, near: geofences.location).first else { return }
+        arrivalOffer = ArrivalOffer(task: task, result: result)
     }
 
     private var shown: [CalendarTask] { filter.apply(to: tasks.tasks) }
@@ -127,6 +253,11 @@ struct TasksView: View {
                     }
                 }
             }
+            Picker("Nearby", selection: $filter.nearby) {
+                Text("Anywhere").tag(NearbyTasks.Range?.none)
+                ForEach(NearbyTasks.Range.allCases) { Text($0.title).tag(NearbyTasks.Range?.some($0)) }
+            }
+            .pickerStyle(.menu)
             Toggle("Show done", isOn: $filter.showDone)
             if filter.hasMenuFilters {
                 Button("Clear filters", role: .destructive) {
@@ -170,9 +301,18 @@ struct TasksView: View {
         }
         isAdding = true
         addError = nil
+        arrivalOffer = nil
         defer { isAdding = false }
         do {
-            try await tasks.create(parsed)
+            var request = SmartAdd.request(for: parsed)
+            let place = parsed.location.flatMap(places.match)
+            if let place { request.geoPlaceId = place.id }
+            let created = try await tasks.create(request)
+            if place != nil {
+                askForAlerts()
+            } else if let text = parsed.location {
+                Task { await offerPlace(for: created, named: text) }
+            }
             newTitle = ""
             composerFocused = true
         } catch {
@@ -192,6 +332,8 @@ struct TaskRoute: Hashable {
 struct TaskRow: View {
     @EnvironmentObject var tasks: TasksService
     let task: CalendarTask
+    /// Metres away, in the Nearby list.
+    var distance: Double?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -223,7 +365,9 @@ struct TaskRow: View {
             task.priority.map { ("!\($0)", "flag.fill") },
             task.dueDateText.map { ($0, "clock") },
             task.recurrenceRule == nil ? nil : ("Repeats", "repeat"),
-            task.location.map { ($0, "mappin") },
+            distance.map { (NearbyTasks.format($0), "location.fill") },
+            task.location.map { ($0, task.geofence == nil ? "mappin" : "location.circle") }
+                ?? (task.geofence == nil ? nil : ("Place", "location.circle")),
             task.eventId == nil ? nil : ("On calendar", "calendar"),
             task.notes == nil ? nil : ("Notes", "doc.text"),
         ].compactMap { $0 }
@@ -249,6 +393,8 @@ struct TaskRow: View {
 /// is visible before Return commits it.
 struct SmartAddPreview: View {
     let parsed: SmartAddResult
+    /// The saved place `@place` matched, if one did: it will remind you there.
+    var place: String?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -282,7 +428,11 @@ struct SmartAddPreview: View {
             chips.append(Chip(text: SmartAdd.describeRepeat(rule, after: parsed.repeatAfterCompletion), symbol: "repeat"))
         }
         if let minutes = parsed.estimateMinutes { chips.append(Chip(text: SmartAdd.formatEstimate(minutes), symbol: "hourglass")) }
-        if let location = parsed.location { chips.append(Chip(text: location, symbol: "mappin")) }
+        if let place {
+            chips.append(Chip(text: place, symbol: "location.circle.fill"))
+        } else if let location = parsed.location {
+            chips.append(Chip(text: location, symbol: "mappin"))
+        }
         if let note = parsed.note { chips.append(Chip(text: note, symbol: "note.text")) }
         return chips
     }

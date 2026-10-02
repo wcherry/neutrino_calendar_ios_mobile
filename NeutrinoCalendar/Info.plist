@@ -69,6 +69,10 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Calendar reminds you of a task when you arrive at its place, even when the app is closed. Your location stays on this iPhone and is never sent to Neutrino.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Calendar uses your location to find places near you and to show the tasks you can do nearby.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>

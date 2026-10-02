@@ -31,6 +31,9 @@ struct TaskFilter: Equatable {
     /// A task matches if it carries any one of these.
     var tags: Set<String> = []
     var showDone = true
+    /// Open tasks with a place within this range, nearest first. Needs the device's location and
+    /// the decrypted places, so `NearbyTasks` applies it after `apply`, not `apply` itself.
+    var nearby: NearbyTasks.Range?
 
     /// Anything other than the whole list, search included.
     var isActive: Bool { hasMenuFilters || !query.isEmpty }

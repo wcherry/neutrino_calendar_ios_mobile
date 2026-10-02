@@ -96,15 +96,17 @@ final class TasksService: ObservableObject {
     }
 
     /// Saves the task row. Only what changed is sent, and a field emptied is sent as a clear.
-    /// `tags` is the whole new tag set; nil leaves the tags alone.
+    /// `tags` is the whole new tag set; nil leaves the tags alone. `geofence` and `location` are
+    /// the same: nil leaves them alone, `.some(nil)` clears them.
     ///
     /// Unless `overwrite`, the save stops with `EditConflict` when the task was deleted, or one of
     /// the same fields changed, somewhere else since `task` was read. Offline, it is queued.
     @discardableResult
     func update(_ task: CalendarTask, title: String, notes: String, dueDay: Date?, tags: [String]? = nil,
+                geofence: TaskGeofence?? = nil, location: String?? = nil,
                 calendar: Calendar = .current, overwrite: Bool = false) async throws -> CalendarTask {
         let request = Self.request(from: task, title: title, notes: notes, dueDay: dueDay, tags: tags,
-                                   calendar: calendar)
+                                   geofence: geofence, location: location, calendar: calendar)
         guard request != UpdateTaskRequest() else { return task }
         do {
             if !overwrite {
@@ -115,7 +117,10 @@ final class TasksService: ObservableObject {
                 }
                 let theirs = Self.request(from: task, title: current.title, notes: current.notes ?? "",
                                           dueDay: current.dueDay(in: calendar),
-                                          tags: tags == nil ? nil : current.tags, calendar: calendar)
+                                          tags: tags == nil ? nil : current.tags,
+                                          geofence: geofence == nil ? nil : .some(current.geofence),
+                                          location: location == nil ? nil : .some(current.location),
+                                          calendar: calendar)
                 let clashes = EditConflict.clashes(mine: request, theirs: theirs)
                 if !clashes.isEmpty { throw EditConflict.changedElsewhere(clashes) }
             }
@@ -127,16 +132,47 @@ final class TasksService: ObservableObject {
             let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
             let local = task.with(title: title, notes: .some(trimmedNotes.isEmpty ? nil : trimmedNotes),
                                   dueDate: .some(dueDay.flatMap { ServerDate.parse(CalendarTask.dueDateValue(for: $0, in: calendar)) }),
-                                  dueHasTime: request.dueHasTime, tags: request.tags)
+                                  dueHasTime: request.dueHasTime, tags: request.tags,
+                                  location: request.location == .keep ? nil : .some(location ?? nil),
+                                  geofence: request.geoPlaceId == .keep ? nil : .some(geofence ?? nil))
             replace(local)
             return local
+        }
+    }
+
+    /// Attaches, replaces or removes the task's arrival geofence, and sets the text shown for it
+    /// to `location` when one is given. What Smart Add's confirmation sends; the editor goes
+    /// through `update`.
+    @discardableResult
+    func setGeofence(_ task: CalendarTask, _ geofence: TaskGeofence?, location: String? = nil) async throws -> CalendarTask {
+        var request = UpdateTaskRequest()
+        request.setGeofence(geofence)
+        if let location, location != task.location { request.location = .set(location) }
+        do {
+            let updated = try await client.updateTask(id: task.id, request)
+            replace(updated)
+            return updated
+        } catch let error as CalendarAPIError where error.isNetwork && pending != nil {
+            pending?.enqueue(PendingWrite(method: "PATCH", path: Self.path(task), json: request))
+            let local = task.with(location: location.map { .some($0) }, geofence: .some(geofence))
+            replace(local)
+            return local
+        }
+    }
+
+    /// Takes a deleted saved place off the tasks that used it, as the server just did, so the
+    /// list and the region planner don't wait for a reload.
+    func forgetPlace(id: String) {
+        for task in tasks where task.geofence == .place(id: id) {
+            replace(task.with(geofence: .some(nil)))
         }
     }
 
     /// The fields that differ between `task` and the values given: an edit's request, or, given
     /// the server's current values, what was changed elsewhere.
     static func request(from task: CalendarTask, title: String, notes: String, dueDay: Date?,
-                        tags: [String]? = nil, calendar: Calendar) -> UpdateTaskRequest {
+                        tags: [String]? = nil, geofence: TaskGeofence?? = nil, location: String?? = nil,
+                        calendar: Calendar) -> UpdateTaskRequest {
         var request = UpdateTaskRequest()
         if title != task.title { request.title = title }
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -153,6 +189,11 @@ final class TasksService: ObservableObject {
         if let tags {
             let newTags = TaskTags.normalize(tags)
             if newTags != TaskTags.normalize(task.tags) { request.tags = newTags }
+        }
+        if let geofence, geofence != task.geofence { request.setGeofence(geofence) }
+        if let location {
+            let trimmed = location?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if trimmed != (task.location ?? "") { request.location = trimmed.isEmpty ? .clear : .set(trimmed) }
         }
         return request
     }

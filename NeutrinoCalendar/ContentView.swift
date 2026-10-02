@@ -33,7 +33,7 @@ struct ContentView: View {
             }
 
             if FeatureFlags.tasks {
-                NavigationStack {
+                NavigationStack(path: $router.tasksPath) {
                     TasksView()
                     .safeAreaInset(edge: .bottom, spacing: 0) { PendingWritesBanner() }
                 }
@@ -58,5 +58,7 @@ struct ContentView: View {
         .environmentObject(TasksService(client: CalendarAPIClient(token: { nil })))
         .environmentObject(ReminderNotifications())
         .environmentObject(AppRouter())
+        .environmentObject(PlacesService(client: CalendarAPIClient(token: { nil })))
+        .environmentObject(GeofenceMonitor())
         .environmentObject(PendingWrites(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview-pending.json")))
 }

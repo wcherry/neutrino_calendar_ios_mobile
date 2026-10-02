@@ -18,6 +18,10 @@ final class ReminderNotifications: NSObject, ObservableObject {
     weak var reminders: RemindersService?
     /// Called with a reminder's id when its notification is tapped.
     var onOpen: ((String) -> Void)?
+    /// For the arrival alerts `GeofenceMonitor` posts, which share this delegate.
+    weak var tasks: TasksService?
+    /// Called with a task's id when its arrival notification is tapped.
+    var onOpenTask: ((String) -> Void)?
 
     static let enabledKey = "ncal.notifications.enabled"
     static let category = "REMINDER"
@@ -43,11 +47,22 @@ final class ReminderNotifications: NSObject, ObservableObject {
         center.setNotificationCategories([
             UNNotificationCategory(identifier: Self.category, actions: [done, snooze],
                                    intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: GeofenceMonitor.notificationCategory, actions: [done],
+                                   intentIdentifiers: [], options: []),
         ])
     }
 
     func refreshAuthorization() async {
         authorization = await center.notificationSettings().authorizationStatus
+    }
+
+    /// Asks for permission if it hasn't been asked: for a task's first geofence, whose alert
+    /// would otherwise arrive at a phone that never agreed to show it.
+    func requestAuthorizationIfNeeded() async {
+        await refreshAuthorization()
+        guard authorization == .notDetermined else { return }
+        _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+        await refreshAuthorization()
     }
 
     private var isAuthorized: Bool {
@@ -85,6 +100,7 @@ final class ReminderNotifications: NSObject, ObservableObject {
     func removeAll() async {
         let ours = await center.pendingNotificationRequests().map(\.identifier).filter {
             $0.hasPrefix(NotificationPlan.reminderPrefix) || $0.hasPrefix(NotificationPlan.snoozePrefix)
+                || $0.hasPrefix(GeofenceMonitor.notificationPrefix)
         }
         center.removePendingNotificationRequests(withIdentifiers: ours)
         center.removeAllDeliveredNotifications()
@@ -124,6 +140,18 @@ final class ReminderNotifications: NSObject, ObservableObject {
         }
     }
 
+    /// An arrival alert: Mark as Done completes the task, anything else opens it.
+    fileprivate func handle(action: String, taskID: String) async {
+        guard action == Self.doneAction else {
+            onOpenTask?(taskID)
+            return
+        }
+        guard let tasks else { return }
+        if tasks.task(id: taskID) == nil { await tasks.reload() }
+        guard let task = tasks.task(id: taskID), !task.done else { return }
+        await tasks.setDone(task, true)
+    }
+
     /// Completes the reminder on the server. The list may not be loaded when the app was launched
     /// by the action, so it is loaded first.
     private func markDone(_ reminderID: String) async {
@@ -157,10 +185,13 @@ extension ReminderNotifications: UNUserNotificationCenterDelegate {
         let content = response.notification.request.content
         let action = response.actionIdentifier
         let reminderID = content.userInfo["reminderID"] as? String
+        let taskID = content.userInfo["taskID"] as? String
         let title = content.title
         Task { @MainActor in
             if let reminderID {
                 await self.handle(action: action, reminderID: reminderID, title: title)
+            } else if let taskID {
+                await self.handle(action: action, taskID: taskID)
             }
             completionHandler()
         }
