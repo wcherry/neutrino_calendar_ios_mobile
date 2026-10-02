@@ -20,6 +20,8 @@ struct NeutrinoCalendarApp: App {
     @StateObject private var sync: CalendarSync
     @StateObject private var attachmentFiles: AttachmentFiles
     @StateObject private var keyProvisioning: KeyProvisioningService
+    @StateObject private var places: PlacesService
+    @StateObject private var geofences: GeofenceMonitor
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -39,6 +41,8 @@ struct NeutrinoCalendarApp: App {
         _sync = StateObject(wrappedValue: services.sync)
         _attachmentFiles = StateObject(wrappedValue: services.attachmentFiles)
         _keyProvisioning = StateObject(wrappedValue: services.keyProvisioning)
+        _places = StateObject(wrappedValue: services.places)
+        _geofences = StateObject(wrappedValue: services.geofences)
 
         // iOS only runs a background task registered before launch finishes.
         BackgroundRefresh.register(auth: services.auth, sync: services.sync, reminders: services.reminders,
@@ -59,6 +63,8 @@ struct NeutrinoCalendarApp: App {
                 .environmentObject(sync.pending)
                 .environmentObject(attachmentFiles)
                 .environmentObject(keyProvisioning)
+                .environmentObject(places)
+                .environmentObject(geofences)
                 // A Spotlight result opens its event.
                 .onContinueUserActivity(CSSearchableItemActionType) { activity in
                     guard let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
@@ -169,6 +175,9 @@ private struct RootContentView: View {
                 eventsService.reset()
                 remindersService.reset()
                 tasksService.reset()
+                // The next account must not be alerted at this one's places either.
+                AppServices.shared.places.reset()
+                AppServices.shared.geofences.stop()
                 // The next account must not be reminded of this one's reminders, or find its
                 // events in Spotlight.
                 Task { await notifications.removeAll() }

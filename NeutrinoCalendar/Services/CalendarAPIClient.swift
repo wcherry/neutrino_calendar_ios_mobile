@@ -258,6 +258,28 @@ final class CalendarAPIClient {
         try decode(try await send("DELETE", "/api/v1/calendar/tasks/\(id)/event"), path: "tasks/{id}/event")
     }
 
+    // MARK: - Saved places
+
+    /// The user's saved places, as ciphertext; `PlacesService` decrypts them.
+    func taskPlaces() async throws -> [TaskPlaceRecord] {
+        let response: TaskPlacesResponse = try await get("/api/v1/calendar/task-places")
+        return response.places
+    }
+
+    func createTaskPlace(_ request: SaveTaskPlaceRequest) async throws -> TaskPlaceRecord {
+        try decode(try await send("POST", "/api/v1/calendar/task-places", body: request), path: "task-places")
+    }
+
+    func updateTaskPlace(id: String, _ request: SaveTaskPlaceRequest) async throws -> TaskPlaceRecord {
+        try decode(try await send("PATCH", "/api/v1/calendar/task-places/\(id)", body: request),
+                   path: "task-places/{id}")
+    }
+
+    /// The server clears `geo_place_id` on every task that used it.
+    func deleteTaskPlace(id: String) async throws {
+        _ = try await send("DELETE", "/api/v1/calendar/task-places/\(id)")
+    }
+
     func taskAttachments(taskID: String) async throws -> [TaskAttachment] {
         let response: ListTaskAttachmentsResponse = try await get("/api/v1/calendar/tasks/\(taskID)/attachments")
         return response.attachments

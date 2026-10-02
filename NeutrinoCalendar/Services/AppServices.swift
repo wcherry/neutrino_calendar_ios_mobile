@@ -21,6 +21,8 @@ final class AppServices {
     let attachmentFiles: AttachmentFiles
     let keyProvisioning: KeyProvisioningService
     let surfaces: SystemSurfaces
+    let places: PlacesService
+    let geofences: GeofenceMonitor
 
     private init() {
         // Before anything else. Everything the shared package writes is namespaced `ncal.*`, and
@@ -43,7 +45,16 @@ final class AppServices {
         notifications = ReminderNotifications()
         notifications.reminders = reminders
         notifications.onOpen = { [weak router] id in router?.open(reminderID: id) }
+        notifications.tasks = tasks
+        notifications.onOpenTask = { [weak router] id in router?.open(taskID: id) }
         notifications.configure()
+
+        // Arrival alerts for tasks. Configured during launch too: iOS relaunches a terminated app
+        // to report an arrival, and delivers it to the delegate set here.
+        places = PlacesService(client: client)
+        geofences = GeofenceMonitor()
+        geofences.configure()
+        geofences.observe(tasks: tasks, places: places)
 
         // Live changes from the web and other devices, and edits made offline.
         let signals = CalendarSignalsClient(token: { [weak auth] in
@@ -52,7 +63,8 @@ final class AppServices {
             return auth.accessToken()
         })
         sync = CalendarSync(client: client, signals: signals, pending: PendingWrites(),
-                            events: events, reminders: reminders, tasks: tasks, surfaces: surfaces)
+                            events: events, reminders: reminders, tasks: tasks, places: places,
+                            surfaces: surfaces)
         sync.observe(network)
     }
 }

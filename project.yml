@@ -90,6 +90,12 @@ targets:
           - fetch
         BGTaskSchedulerPermittedIdentifiers:
           - com.neutrino.calendar.refresh
+        # Arrival alerts for tasks with a place, and the Nearby filter; see GeofenceMonitor.swift.
+        # When In Use is asked first (picking a place, Nearby), Always once a task has a place:
+        # iOS only reports an arrival in the background with Always. Region monitoring and
+        # significant location changes need no `location` background mode.
+        NSLocationWhenInUseUsageDescription: Calendar uses your location to find places near you and to show the tasks you can do nearby.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Calendar reminds you of a task when you arrive at its place, even when the app is closed. Your location stays on this iPhone and is never sent to Neutrino.
         # The next event on the Lock Screen and in the Dynamic Island; see LiveActivities.swift.
         NSSupportsLiveActivities: true
         # What a tap on a widget or the Live Activity opens: neutrinocalendar://event/<link> or
