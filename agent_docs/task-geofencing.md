@@ -55,13 +55,15 @@ payload = JSON { "name": String, "lat": Double, "lng": Double, "radiusM": Int }
 - A place this device can't open (no key yet, or a missing key version) is counted in
   `PlacesService.unreadable`, not shown, and its tasks aren't watched. The UI says why.
 
-**Fixture.** `NeutrinoCalendarTests/Fixtures/place_envelope_vectors.json` is generated from the
-web's own `crypto.ts` by `scripts/generate_place_envelope_vectors.mjs`. `PlaceEnvelopeTests` opens
-every case, and the web's tests should read the same file. Changing anything above is a
-wire-format change across the web, every iOS app and the server.
+**Fixture.** `place_envelope_vectors.json` is generated from the web's own `crypto.ts` by
+`neutrino_shared_ios/scripts/generate_place_envelope_vectors.mjs`, into that package's
+`Tests/NeutrinoCryptoTests/Fixtures/`. `PlaceEnvelopeTests` there opens every case, and the web's
+`e2e-crypto` tests open a byte-identical copy. Changing anything above is a wire-format change across
+the web, every iOS app and the server.
 
-**Where it lives.** It lives in this app (`Models/TaskPlace.swift`) for now. Once the format is
-merged on the web, it should move into `NeutrinoCrypto` in `neutrino_shared_ios`.
+**Where it lives.** `PlaceEnvelope` is in `NeutrinoCrypto` (`neutrino_shared_ios`), next to the
+`DriveFileCrypto` primitives it is built from, so any app can read saved places. This app keeps the
+models around it (`Models/TaskPlace.swift`) and `PlacesService`, which seals and opens with it.
 
 ## Watching for arrivals (`GeofenceMonitor`)
 
