@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var notifications: ReminderNotifications
     @EnvironmentObject var remindersService: RemindersService
+    @EnvironmentObject var geofences: GeofenceMonitor
     @AppStorage(ReminderNotifications.enabledKey) private var alertsEnabled = true
     @AppStorage(LayoutDensity.storageKey) private var compactLayout = false
     @AppStorage(LiveActivities.enabledKey) private var liveActivitiesEnabled = true
@@ -16,6 +17,15 @@ struct SettingsView: View {
     @EnvironmentObject var events: EventsService
     @EnvironmentObject var calendars: CalendarsService
     @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.default.rawValue
+
+    private var locationAccess: String {
+        switch geofences.authorization {
+        case .authorizedAlways:    return "Always"
+        case .authorizedWhenInUse: return "While Using"
+        case .denied, .restricted: return "Off"
+        default:                   return "Not asked"
+        }
+    }
 
     var body: some View {
         List {
@@ -41,6 +51,22 @@ struct SettingsView: View {
                 Task { await notifications.apply(remindersService.reminders) }
             }
             .task { await notifications.refreshAuthorization() }
+
+            if FeatureFlags.tasks {
+                Section {
+                    NavigationLink("Saved Places") { SavedPlacesView() }
+                    LabeledContent("Location access", value: locationAccess)
+                    if geofences.authorization != .authorizedAlways && geofences.authorization != .notDetermined {
+                        Button("Change in Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                        }
+                    }
+                } header: {
+                    Text("Places")
+                } footer: {
+                    Text("A task with a place reminds you when you arrive there, which needs location access set to Always. This iPhone watches for arrivals itself: your location is never sent to the server.")
+                }
+            }
 
             Section {
                 Toggle("Live Activities", isOn: $liveActivitiesEnabled)

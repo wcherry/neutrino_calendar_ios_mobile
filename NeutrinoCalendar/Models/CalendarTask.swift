@@ -31,10 +31,14 @@ struct CalendarTask: Decodable, Identifiable, Hashable {
     let repeatAfterCompletion: Bool
     let estimateMinutes: Int?
     let location: String?
+    /// Where the task reminds you on arrival, if anywhere: a saved place, or a one-off point.
+    /// `location` stays the text shown for it, so older clients still have something to show.
+    let geofence: TaskGeofence?
 
     private enum CodingKeys: String, CodingKey {
         case id, title, notes, done, dueDate, position, eventId
         case dueHasTime, priority, tags, recurrenceRule, repeatAfterCompletion, estimateMinutes, location
+        case geoPlaceId, geoLat, geoLng, geoRadiusM
     }
 
     init(from decoder: Decoder) throws {
@@ -54,13 +58,24 @@ struct CalendarTask: Decodable, Identifiable, Hashable {
         repeatAfterCompletion = try c.decodeIfPresent(Bool.self, forKey: .repeatAfterCompletion) ?? false
         estimateMinutes = try c.decodeIfPresent(Int.self, forKey: .estimateMinutes)
         location = try c.decodeIfPresent(String.self, forKey: .location)
+        // Absent from servers older than geofencing (wcherry/neutrino_calendar_ios_mobile#23).
+        geofence = try Self.decodeGeofence(c)
+    }
+
+    /// A saved place wins over a point, though the server never stores both.
+    private static func decodeGeofence(_ c: KeyedDecodingContainer<CodingKeys>) throws -> TaskGeofence? {
+        if let id = try c.decodeIfPresent(String.self, forKey: .geoPlaceId) { return .place(id: id) }
+        guard let lat = try c.decodeIfPresent(Double.self, forKey: .geoLat),
+              let lng = try c.decodeIfPresent(Double.self, forKey: .geoLng) else { return nil }
+        let radius = try c.decodeIfPresent(Int.self, forKey: .geoRadiusM) ?? GeoPoint.defaultRadius
+        return .point(GeoPoint(latitude: lat, longitude: lng, radius: radius))
     }
 
     /// For tests and previews.
     init(id: String, title: String, notes: String? = nil, done: Bool = false, dueDate: Date? = nil,
          position: Int = 0, eventId: String? = nil, dueHasTime: Bool = false, priority: Int? = nil,
          tags: [String] = [], recurrenceRule: String? = nil, repeatAfterCompletion: Bool = false,
-         estimateMinutes: Int? = nil, location: String? = nil) {
+         estimateMinutes: Int? = nil, location: String? = nil, geofence: TaskGeofence? = nil) {
         self.id = id
         self.title = title
         self.notes = notes
@@ -75,16 +90,19 @@ struct CalendarTask: Decodable, Identifiable, Hashable {
         self.repeatAfterCompletion = repeatAfterCompletion
         self.estimateMinutes = estimateMinutes
         self.location = location
+        self.geofence = geofence
     }
 
     /// This task with some fields changed: what an edit made offline shows until the server has it.
     func with(title: String? = nil, notes: String?? = nil, done: Bool? = nil,
-              dueDate: Date?? = nil, dueHasTime: Bool? = nil, tags: [String]? = nil) -> CalendarTask {
+              dueDate: Date?? = nil, dueHasTime: Bool? = nil, tags: [String]? = nil,
+              location: String?? = nil, geofence: TaskGeofence?? = nil) -> CalendarTask {
         CalendarTask(id: id, title: title ?? self.title, notes: notes ?? self.notes, done: done ?? self.done,
                      dueDate: dueDate ?? self.dueDate, position: position, eventId: eventId,
                      dueHasTime: dueHasTime ?? self.dueHasTime, priority: priority, tags: tags ?? self.tags,
                      recurrenceRule: recurrenceRule, repeatAfterCompletion: repeatAfterCompletion,
-                     estimateMinutes: estimateMinutes, location: location)
+                     estimateMinutes: estimateMinutes, location: location ?? self.location,
+                     geofence: geofence ?? self.geofence)
     }
 
     /// The due date as the calendar day it names, formatted in UTC so it is the same day in every
@@ -165,6 +183,10 @@ struct CreateTaskRequest: Encodable, Equatable {
     var repeatAfterCompletion: Bool?
     var estimateMinutes: Int?
     var location: String?
+    var geoPlaceId: String?
+    var geoLat: Double?
+    var geoLng: Double?
+    var geoRadiusM: Int?
 
     init(title: String) {
         self.title = title
@@ -194,8 +216,33 @@ struct UpdateTaskRequest: Encodable, Equatable {
     var timezone: String?
     /// The task's whole tag set, replacing the old one; absent leaves the tags alone.
     var tags: [String]?
+    var location: Patch<String> = .keep
+    /// Setting one kind of geofence clears the other; see `setGeofence`.
+    var geoPlaceId: Patch<String> = .keep
+    var geoLat: Patch<Double> = .keep
+    var geoLng: Patch<Double> = .keep
+    var geoRadiusM: Patch<Int> = .keep
 
-    private enum CodingKeys: String, CodingKey { case title, notes, done, dueDate, dueHasTime, timezone, tags }
+    /// Sets, replaces or clears the task's arrival geofence. All four fields are sent, so a saved
+    /// place replacing a point clears the point and the other way round.
+    mutating func setGeofence(_ geofence: TaskGeofence?) {
+        switch geofence {
+        case .place(let id)?:
+            geoPlaceId = .set(id)
+            geoLat = .clear; geoLng = .clear; geoRadiusM = .clear
+        case .point(let point)?:
+            geoPlaceId = .clear
+            geoLat = .set(point.latitude); geoLng = .set(point.longitude); geoRadiusM = .set(point.radius)
+        case nil:
+            geoPlaceId = .clear
+            geoLat = .clear; geoLng = .clear; geoRadiusM = .clear
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case title, notes, done, dueDate, dueHasTime, timezone, tags
+        case location, geoPlaceId, geoLat, geoLng, geoRadiusM
+    }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -204,12 +251,23 @@ struct UpdateTaskRequest: Encodable, Equatable {
         try c.encodeIfPresent(dueHasTime, forKey: .dueHasTime)
         try c.encodeIfPresent(timezone, forKey: .timezone)
         try c.encodeIfPresent(tags, forKey: .tags)
-        for (patch, key) in [(notes, CodingKeys.notes), (dueDate, CodingKeys.dueDate)] {
-            switch patch {
-            case .keep:           break
-            case .set(let value): try c.encode(value, forKey: key)
-            case .clear:          try c.encodeNil(forKey: key)
-            }
+        try c.encode(notes, forKey: .notes)
+        try c.encode(dueDate, forKey: .dueDate)
+        try c.encode(location, forKey: .location)
+        try c.encode(geoPlaceId, forKey: .geoPlaceId)
+        try c.encode(geoLat, forKey: .geoLat)
+        try c.encode(geoLng, forKey: .geoLng)
+        try c.encode(geoRadiusM, forKey: .geoRadiusM)
+    }
+}
+
+private extension KeyedEncodingContainer {
+    /// Nothing for `.keep`, the value for `.set`, and a JSON `null` for `.clear`.
+    mutating func encode<Value>(_ patch: Patch<Value>, forKey key: Key) throws {
+        switch patch {
+        case .keep:           break
+        case .set(let value): try encode(value, forKey: key)
+        case .clear:          try encodeNil(forKey: key)
         }
     }
 }

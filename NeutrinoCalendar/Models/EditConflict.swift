@@ -50,6 +50,7 @@ enum EditConflict: LocalizedError, Equatable {
         case "timezone":                       return "time zone"
         case "dueTime", "dueDate", "dueHasTime": return "due date"
         case "calendarId":                     return "calendar"
+        case "geoPlaceId", "geoLat", "geoLng", "geoRadiusM": return "place"
         default:                               return key
         }
     }

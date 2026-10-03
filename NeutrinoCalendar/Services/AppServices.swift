@@ -24,6 +24,8 @@ final class AppServices {
     let surfaces: SystemSurfaces
     let calendars: CalendarsService
     private var cancellables: Set<AnyCancellable> = []
+    let places: PlacesService
+    let geofences: GeofenceMonitor
 
     private init() {
         // Before anything else. Everything the shared package writes is namespaced `ncal.*`, and
@@ -53,7 +55,16 @@ final class AppServices {
             guard let events, let eventID = reminder.linkedEventId else { return false }
             return events.isInHiddenCalendar(eventID: eventID)
         }
+        notifications.tasks = tasks
+        notifications.onOpenTask = { [weak router] id in router?.open(taskID: id) }
         notifications.configure()
+
+        // Arrival alerts for tasks. Configured during launch too: iOS relaunches a terminated app
+        // to report an arrival, and delivers it to the delegate set here.
+        places = PlacesService(client: client)
+        geofences = GeofenceMonitor()
+        geofences.configure()
+        geofences.observe(tasks: tasks, places: places)
 
         // Live changes from the web and other devices, and edits made offline.
         let signals = CalendarSignalsClient(token: { [weak auth] in
@@ -63,7 +74,7 @@ final class AppServices {
         })
         sync = CalendarSync(client: client, signals: signals, pending: PendingWrites(),
                             events: events, reminders: reminders, tasks: tasks, calendars: calendars,
-                            surfaces: surfaces)
+                            places: places, surfaces: surfaces)
         calendars.$calendars
             .sink { [weak events] list in Task { await events?.setCalendars(list) } }
             .store(in: &cancellables)

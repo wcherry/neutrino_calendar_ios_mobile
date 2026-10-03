@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// Where the app is showing, for things outside the tab bar that need to move it: a tapped
 /// notification opens the Reminders tab on its reminder, and a Spotlight result or a Shortcut
@@ -9,6 +9,11 @@ final class AppRouter: ObservableObject {
     @Published var tab: ContentView.Tab = .calendar
     /// A reminder to open for editing, taken by the Reminders tab once it is showing.
     @Published var openReminderID: String?
+
+    /// A task to open, taken by the Tasks tab once it is showing: a tapped arrival alert.
+    @Published var openTaskID: String?
+    /// The Tasks tab's navigation, so an opened task replaces whatever task was showing.
+    @Published var tasksPath = NavigationPath()
 
     /// An event to open, taken by the Calendar tab once it is showing.
     @Published var openEvent: EventLink?
@@ -21,6 +26,11 @@ final class AppRouter: ObservableObject {
     func open(reminderID: String) {
         tab = .reminders
         openReminderID = reminderID
+    }
+
+    func open(taskID: String) {
+        tab = .tasks
+        openTaskID = taskID
     }
 
     func open(_ event: EventLink) {

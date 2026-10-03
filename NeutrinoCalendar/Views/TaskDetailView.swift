@@ -8,6 +8,9 @@ struct TaskDetailView: View {
     @EnvironmentObject var tasks: TasksService
     @EnvironmentObject var reminders: RemindersService
     @EnvironmentObject var events: EventsService
+    @EnvironmentObject var places: PlacesService
+    @EnvironmentObject var geofences: GeofenceMonitor
+    @EnvironmentObject var notifications: ReminderNotifications
     @Environment(\.dismiss) private var dismiss
 
     let taskID: String
@@ -18,6 +21,10 @@ struct TaskDetailView: View {
     @State private var due = Date()
     @State private var tags: [String] = []
     @State private var tagDraft = ""
+    @State private var geofence: TaskGeofence?
+    /// The text shown for the task's location: Smart Add's `@Safeway`, or the place picked.
+    @State private var location = ""
+    @State private var pickingPlace = false
 
     @State private var onCalendar = false
     @State private var allDay = false
@@ -68,6 +75,15 @@ struct TaskDetailView: View {
             }
         }
         .sheet(item: $newReminder) { ReminderEditorView(mode: $0) }
+        .sheet(isPresented: $pickingPlace) {
+            PlacePickerView { name, picked in
+                location = name
+                geofence = picked
+                // In context: the first place picked is when an arrival alert starts to matter.
+                geofences.requestAlways()
+                Task { await notifications.requestAuthorizationIfNeeded() }
+            }
+        }
         .task(id: taskID) { await seed() }
         .editConflictAlert($conflict,
                            overwrite: { Task { await save(overwrite: true) } },
@@ -99,6 +115,8 @@ struct TaskDetailView: View {
         Section("Tags") {
             TagField(tags: $tags, draft: $tagDraft, known: tasks.allTags)
         }
+
+        locationSection
 
         Section {
             Toggle("Add to calendar", isOn: $onCalendar.animation())
@@ -144,6 +162,64 @@ struct TaskDetailView: View {
         AttachmentsSection(owner: tasks.attachmentOwner(taskID: task.id), presenter: attachmentsPresenter)
     }
 
+    /// Where the task reminds you on arrival. Arrival alerts are this iPhone's job, so the footer
+    /// says plainly when they can't fire; the task saves either way.
+    @ViewBuilder
+    private var locationSection: some View {
+        Section {
+            if let geofence {
+                HStack {
+                    Label(geofenceName(geofence), systemImage: "location.circle.fill")
+                    Spacer()
+                    Button("Remove", role: .destructive) { self.geofence = nil }
+                        .buttonStyle(.borderless)
+                }
+                Button("Change Place…") { pickingPlace = true }
+            } else {
+                if !location.isEmpty {
+                    Label(location, systemImage: "mappin")
+                        .foregroundStyle(.secondary)
+                }
+                Button {
+                    pickingPlace = true
+                } label: {
+                    Label("Remind Me When I Arrive…", systemImage: "location")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+            }
+        } header: {
+            Text("Location")
+        } footer: {
+            if geofence != nil, let reason = geofences.inactiveReason {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(reason)
+                    if geofences.authorization != .notDetermined {
+                        Button("Open Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                        }
+                        .font(.footnote)
+                    }
+                }
+            } else if case .place(let id)? = geofence, places.place(id: id) == nil, places.hasLoaded {
+                Text(places.unreadable > 0
+                     ? "This saved place can't be opened on this iPhone without your encryption key."
+                     : "This saved place was deleted.")
+            }
+        }
+    }
+
+    private func geofenceName(_ geofence: TaskGeofence) -> String {
+        switch geofence {
+        case .place(let id):
+            if let place = places.place(id: id) { return place.name }
+            return location.isEmpty ? "Saved place" : location
+        case .point(let point):
+            let name = location.isEmpty ? "Pinned location" : location
+            return "\(name) · \(NearbyTasks.format(Double(point.radius)))"
+        }
+    }
+
     /// Moving the start keeps the slot's length rather than inverting it, as on the web.
     private var startBinding: Binding<Date> {
         Binding(get: { start }, set: { newStart in
@@ -175,6 +251,9 @@ struct TaskDetailView: View {
         notes = task.notes ?? ""
         tags = task.tags
         tagDraft = ""
+        geofence = task.geofence
+        location = task.location ?? ""
+        if task.geofence?.placeID != nil, !places.hasLoaded { Task { await places.reload() } }
         if let day = task.dueDay() {
             hasDue = true
             due = day
@@ -226,7 +305,9 @@ struct TaskDetailView: View {
             let saved = try await tasks.update(task, title: title.trimmingCharacters(in: .whitespaces),
                                                notes: notes, dueDay: hasDue ? due : nil,
                                                // A tag typed but not yet added is still meant.
-                                               tags: tags + TaskTags.split(tagDraft), overwrite: overwrite)
+                                               tags: tags + TaskTags.split(tagDraft),
+                                               geofence: .some(geofence), location: .some(location),
+                                               overwrite: overwrite)
             let slot = Slot(start: start, end: end, allDay: allDay)
             var calendarChanged = false
             if onCalendar, saved.eventId == nil || slot != original {

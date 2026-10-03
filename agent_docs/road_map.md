@@ -393,6 +393,13 @@ Goal: parity with the web sidebars.
 * ✅ Filter tasks: search (title, notes, location, tags; `#tag` for tags only) and a menu for due
   (overdue, today, next 7 days, no date), priority, tags and showing done. On the device, as the
   task list is fetched whole; drag reordering is off while filtered. The web has no filter yet
+* 🟡 Geofencing (#23; design `agent_docs/task-geofencing.md`): arrival reminders at a saved place
+  or a one-off point, watched on the device (the 20 nearest, re-picked as you move) and alerted
+  with a local notification, even when the app was terminated. Saved places are end-to-end
+  encrypted (`PlaceEnvelope`, the first E2EE data in Calendar); Smart Add's `@Home` attaches a
+  saved place and `@Safeway` offers a map result to confirm; a Nearby filter. **iOS done; waiting
+  on the server, web and TS envelope (wcherry/neutrino#243).** Until then saved places are hidden
+  and one-off points are kept only by a server that has the fields
 * ⬜ Delete a task. The server has no route for it, and the web can't either
 * ⬜ Add tasks from a `.txt` or `.csv` file, as the web can
 
