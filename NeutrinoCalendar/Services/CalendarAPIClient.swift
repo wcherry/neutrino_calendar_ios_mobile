@@ -220,6 +220,29 @@ final class CalendarAPIClient {
                            query: [URLQueryItem(name: "fromOccurrence", value: ServerDate.format(start))])
     }
 
+    // MARK: - Calendars
+
+    /// Every calendar, the default first, hidden ones included: hiding is the client's to apply.
+    func calendars() async throws -> [UserCalendar] {
+        let response: ListCalendarsResponse = try await get("/api/v1/calendar/calendars")
+        return response.calendars
+    }
+
+    /// 409 for a country already added.
+    func createCalendar(_ request: CreateCalendarRequest) async throws -> UserCalendar {
+        try decode(try await send("POST", "/api/v1/calendar/calendars", body: request), path: "calendars")
+    }
+
+    func updateCalendar(id: String, _ request: UpdateCalendarRequest) async throws -> UserCalendar {
+        try decode(try await send("PATCH", "/api/v1/calendar/calendars/\(id)", body: request), path: "calendars/{id}")
+    }
+
+    /// Deletes the calendar and its events. 400 for the default calendar, 409 for a provider's
+    /// while its account is connected.
+    func deleteCalendar(id: String) async throws {
+        _ = try await send("DELETE", "/api/v1/calendar/calendars/\(id)")
+    }
+
     // MARK: - Tasks
 
     /// Every task, in `position` order. A bare array, unlike the other list endpoints.

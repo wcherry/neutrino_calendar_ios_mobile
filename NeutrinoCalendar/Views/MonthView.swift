@@ -42,7 +42,7 @@ struct MonthView: View {
                                  inMonth: calendar.isDate(day, equalTo: events.focus, toGranularity: .month),
                                  isToday: day == events.today,
                                  isSelected: day == events.focus,
-                                 eventCount: dots(for: day),
+                                 dots: dots(for: day),
                                  compact: compact)
                         .onTapGesture { events.select(day) }
                 }
@@ -50,11 +50,12 @@ struct MonthView: View {
         }
     }
 
-    /// How many dots to draw: the day's events, up to three. Days of the neighbouring months get
+    /// A dot per event or task, in its colour, up to three. Days of the neighbouring months get
     /// none, since only this month is loaded.
-    private func dots(for day: Date) -> Int {
-        guard calendar.isDate(day, equalTo: events.focus, toGranularity: .month) else { return 0 }
-        return min(events.occurrences(on: day).count, 3)
+    private func dots(for day: Date) -> [Color] {
+        guard calendar.isDate(day, equalTo: events.focus, toGranularity: .month) else { return [] }
+        let rules = events.rules
+        return events.occurrences(on: day).prefix(3).map { EventStyle.color(of: $0, rules: rules) }
     }
 
     private var swipe: some Gesture {
@@ -87,6 +88,7 @@ struct MonthView: View {
                     NavigationLink(value: occurrence) {
                         EventRowView(occurrence: occurrence)
                     }
+                    .listRowBackground(EventStyle.rowBackground(occurrence))
                     .densityRow()
                 }
             } header: {
@@ -108,7 +110,8 @@ struct MonthDayCell: View {
     let inMonth: Bool
     let isToday: Bool
     let isSelected: Bool
-    let eventCount: Int
+    /// One per event shown, up to three, in its colour.
+    let dots: [Color]
     let compact: Bool
 
     var body: some View {
@@ -123,8 +126,8 @@ struct MonthDayCell: View {
                     }
                 }
             HStack(spacing: 3) {
-                ForEach(0..<eventCount, id: \.self) { _ in
-                    Circle().fill(Color.secondary).frame(width: 5, height: 5)
+                ForEach(Array(dots.enumerated()), id: \.offset) { _, color in
+                    Circle().fill(color).frame(width: 5, height: 5)
                 }
             }
             .frame(height: 5)
@@ -146,7 +149,8 @@ struct MonthDayCell: View {
     private var accessibilityText: String {
         var parts = [day.formatted(date: .complete, time: .omitted)]
         if isToday { parts.append("Today") }
-        if eventCount > 0 { parts.append(eventCount == 3 ? "3 or more events" : "\(eventCount) event\(eventCount == 1 ? "" : "s")") }
+        let count = dots.count
+        if count > 0 { parts.append(count == 3 ? "3 or more events" : "\(count) event\(count == 1 ? "" : "s")") }
         return parts.joined(separator: ", ")
     }
 }

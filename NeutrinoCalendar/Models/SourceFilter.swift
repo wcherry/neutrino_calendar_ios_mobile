@@ -13,7 +13,8 @@ enum CalendarSource: String, CaseIterable, Identifiable, Sendable {
     /// `nil` for a source the server names but the app doesn't know, which no filter chooses.
     init?(_ source: EventSource) {
         switch source {
-        case .local:   self = .neutrino
+        // A holiday calendar and a task are Neutrino's own, whatever they were computed from.
+        case .local, .holidays, .task: self = .neutrino
         case .google:  self = .google
         case .outlook: self = .outlook
         case .apple:   self = .icloud

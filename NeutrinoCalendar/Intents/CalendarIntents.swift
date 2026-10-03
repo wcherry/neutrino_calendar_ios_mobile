@@ -103,7 +103,7 @@ struct EventQuery: EntityQuery {
         let events = services.events
         let upcoming = try await IntentSupport.reaching { try await events.upcoming(days: 7) }
         return upcoming
-            .filter { events.sourceFilter.shows($0.event.source) }
+            .filter { events.filter.shows($0.event) && !$0.event.source.isComputed }
             .prefix(20)
             .map { EventEntity($0, calendar: events.calendar) }
     }
@@ -124,7 +124,7 @@ struct WhatsNextIntent: AppIntent {
         let services = try IntentSupport.services()
         let events = services.events
         let upcoming = try await IntentSupport.reaching { try await events.upcoming(days: Self.days) }
-        let next = UpNext.next(upcoming, filter: events.sourceFilter)
+        let next = UpNext.next(upcoming, filter: events.filter)
         let sentence = UpNext.sentence(for: next, now: Date(), calendar: events.calendar, days: Self.days)
         return .result(value: next.map { EventEntity($0, calendar: events.calendar) },
                        dialog: "\(sentence)")

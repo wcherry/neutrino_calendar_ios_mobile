@@ -79,8 +79,12 @@ final class TasksService: ObservableObject {
 
     /// Completing a repeating task leaves it done and the server creates the next occurrence as a
     /// new task, which is added to the list here rather than waiting for a reload.
+    ///
+    /// Ticked at once, wherever the box was (the Tasks list or the calendar), and unticked again
+    /// if the server refuses. Offline, the change is queued and stays.
     func setDone(_ task: CalendarTask, _ done: Bool, timeZone: TimeZone = .current) async {
         let request = UpdateTaskRequest(done: done, timezone: timeZone.identifier)
+        replace(task.with(done: done))
         do {
             let result = try await client.updateTaskReportingNext(id: task.id, request)
             replace(result.task)
@@ -88,9 +92,9 @@ final class TasksService: ObservableObject {
         } catch let error as CalendarAPIError where error.isNetwork && pending != nil {
             // The next occurrence of a repeating task arrives with the reload after the replay.
             pending?.enqueue(PendingWrite(method: "PATCH", path: Self.path(task), json: request))
-            replace(task.with(done: done))
         } catch {
             logger.error("setDone failed: \(error, privacy: .public)")
+            replace(task)
             self.error = error.localizedDescription
         }
     }

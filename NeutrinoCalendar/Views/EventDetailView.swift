@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// One occurrence of an event. Neutrino's own events can be edited and deleted from here;
-/// events synced from Google, Outlook or iCloud are read-only until the server can write back to
-/// the provider (Epic 17).
+/// One occurrence of an event. Neutrino's own events can be edited and deleted from here, unless
+/// their calendar is read-only. Events synced from Google, Outlook or iCloud are read-only until
+/// the server can write back to the provider (Epic 17), and a holiday always is: it is computed
+/// here, with no event on the server behind it, so it has no reminders or attachments either.
 struct EventDetailView: View {
     @EnvironmentObject var events: EventsService
     @EnvironmentObject var reminders: RemindersService
@@ -25,6 +26,8 @@ struct EventDetailView: View {
 
 
     private var event: CalendarEvent { occurrence.event }
+    private var calendar: UserCalendar? { events.rules.calendar(of: event) }
+    private var isEditable: Bool { events.rules.isEditable(event) }
 
     var body: some View {
         List {
@@ -37,6 +40,19 @@ struct EventDetailView: View {
                         if let badge = event.source.badge {
                             SourceBadge(text: badge)
                         }
+                    }
+                    if let calendar {
+                        HStack(spacing: 6) {
+                            Circle().fill(Color(hex: calendar.color) ?? .accentColor).frame(width: 10, height: 10)
+                            Text(calendar.name)
+                            if events.rules.isReadOnly(event) {
+                                Label("Read-only", systemImage: "lock.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .font(.subheadline)
+                        .accessibilityElement(children: .combine)
                     }
                     Text(EventFormatting.dateSummary(occurrence))
                     Text(EventFormatting.timeSummary(occurrence))
@@ -56,6 +72,10 @@ struct EventDetailView: View {
             } footer: {
                 if let badge = event.source.badge {
                     Text("Synced from \(badge). Edit it there: changes can't be sent back to \(badge) yet.")
+                } else if event.source == .holidays {
+                    Text("A public holiday, worked out on this iPhone from the holiday calendar you added.")
+                } else if events.rules.isReadOnly(event) {
+                    Text("This calendar is read-only, so its events can't be changed.")
                 }
             }
 
@@ -82,15 +102,18 @@ struct EventDetailView: View {
                 }
             }
 
-            remindersSection
+            // Nothing on the server to remind about or attach to.
+            if !event.source.isComputed {
+                remindersSection
 
-            AttachmentsSection(owner: events.attachmentOwner(event), presenter: attachmentsPresenter)
+                AttachmentsSection(owner: events.attachmentOwner(event), presenter: attachmentsPresenter)
+            }
         }
         .densityList()
         .attachmentPresentations(attachmentsPresenter)
         .navigationTitle("Event")
         .navigationBarTitleDisplayMode(.inline)
-        .task { if !reminders.hasLoaded { await reminders.reload() } }
+        .task { if !reminders.hasLoaded && !event.source.isComputed { await reminders.reload() } }
         .sheet(item: $customReminder) { ReminderEditorView(mode: $0) }
         .sheet(item: $editing) { mode in
             EventEditorView(mode: mode) { saved in applyEdit(saved) }
@@ -103,7 +126,7 @@ struct EventDetailView: View {
             Task { await reminders.delete(reminder, scope: scope) }
         }
         .toolbar {
-            if event.source == .local {
+            if isEditable {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Edit") {
                         if occurrence.isRepeating { choosingEditScope = true } else { editing = .edit(occurrence, nil) }

@@ -69,7 +69,7 @@ final class WidgetTests: XCTestCase {
 
     func testTheFocusFilterAppliesToTheWidgets() {
         let snapshot = WidgetSnapshotStore.build(sample, now: now, calendar: calendar,
-                                                 filter: SourceFilter(shown: [.neutrino]))
+                                                 filter: EventFilter(rules: .none, focus: SourceFilter(shown: [.neutrino])))
         XCTAssertFalse(snapshot.events.contains { $0.title == "google" })
         XCTAssertFalse(snapshot.busyDays.contains("2026-09-16"))
         XCTAssertEqual(snapshot.filterSummary, "Neutrino")
@@ -178,7 +178,7 @@ final class WidgetTests: XCTestCase {
         XCTAssertEqual(LiveActivities.candidate(upcoming, now: date("2026-09-16T16:30:00Z"), filter: .all)?.event.id,
                        "google")
         XCTAssertNil(LiveActivities.candidate(upcoming, now: date("2026-09-16T16:30:00Z"),
-                                              filter: SourceFilter(shown: [.neutrino])))
+                                              filter: EventFilter(rules: .none, focus: SourceFilter(shown: [.neutrino]))))
     }
 
     @available(iOS 16.2, *)

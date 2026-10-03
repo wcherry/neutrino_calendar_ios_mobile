@@ -20,6 +20,7 @@ struct NeutrinoCalendarApp: App {
     @StateObject private var sync: CalendarSync
     @StateObject private var attachmentFiles: AttachmentFiles
     @StateObject private var keyProvisioning: KeyProvisioningService
+    @StateObject private var calendars: CalendarsService
     @StateObject private var places: PlacesService
     @StateObject private var geofences: GeofenceMonitor
 
@@ -41,6 +42,7 @@ struct NeutrinoCalendarApp: App {
         _sync = StateObject(wrappedValue: services.sync)
         _attachmentFiles = StateObject(wrappedValue: services.attachmentFiles)
         _keyProvisioning = StateObject(wrappedValue: services.keyProvisioning)
+        _calendars = StateObject(wrappedValue: services.calendars)
         _places = StateObject(wrappedValue: services.places)
         _geofences = StateObject(wrappedValue: services.geofences)
 
@@ -63,6 +65,7 @@ struct NeutrinoCalendarApp: App {
                 .environmentObject(sync.pending)
                 .environmentObject(attachmentFiles)
                 .environmentObject(keyProvisioning)
+                .environmentObject(calendars)
                 .environmentObject(places)
                 .environmentObject(geofences)
                 // A Spotlight result opens its event.
@@ -167,6 +170,11 @@ private struct RootContentView: View {
             guard authService.isAuthenticated, remindersService.hasLoaded else { return }
             Task { await notifications.apply(reminders) }
         }
+        // A calendar hidden or shown hides or brings back its events' alerts.
+        .onReceive(eventsService.$calendars.dropFirst()) { _ in
+            guard authService.isAuthenticated, remindersService.hasLoaded else { return }
+            Task { await notifications.apply(remindersService.reminders) }
+        }
         .onChange(of: authService.isAuthenticated) { isAuthenticated in
             if !isAuthenticated {
                 sync.stop()
@@ -175,6 +183,7 @@ private struct RootContentView: View {
                 eventsService.reset()
                 remindersService.reset()
                 tasksService.reset()
+                AppServices.shared.calendars.reset()
                 // The next account must not be alerted at this one's places either.
                 AppServices.shared.places.reset()
                 AppServices.shared.geofences.stop()

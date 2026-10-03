@@ -41,6 +41,11 @@ final class SystemSurfaces {
             .merge(with: events.$weekStart.dropFirst().removeDuplicates().map { _ in () })
             .sink { [weak self] in Task { await self?.redraw() } }
             .store(in: &cancellables)
+        // A calendar hidden, shown, recoloured or added. Fetched again rather than redrawn: a
+        // new holiday calendar's days aren't in the last fetch. Calendars change rarely.
+        events.$calendars.dropFirst().removeDuplicates()
+            .sink { [weak self] _ in Task { await self?.refresh() } }
+            .store(in: &cancellables)
     }
 
     /// Fetches and updates everything. A call made while one runs runs again after it, so a
@@ -96,16 +101,20 @@ final class SystemSurfaces {
     private func publish(_ occurrences: [EventOccurrence], spotlight indexSpotlight: Bool) async {
         let now = events.currentDate
         let calendar = events.calendar
-        let filter = events.sourceFilter
+        let filter = events.filter
         let upcoming = UpNext.upcoming(occurrences, now: now, calendar: calendar)
 
         widgets.write(WidgetSnapshotStore.build(occurrences, now: now, calendar: calendar, filter: filter))
         await liveActivities.show(LiveActivities.candidate(upcoming, now: now, filter: filter), now: now)
         if indexSpotlight {
-            // Spotlight ignores the Focus filter: a search is asked for, not shown unasked.
+            // Spotlight ignores the Focus filter: a search is asked for, not shown unasked. A
+            // hidden calendar is hidden there too, and holidays, which have no event to open,
+            // aren't indexed.
             let end = calendar.date(byAdding: .day, value: SpotlightIndexer.horizonDays,
                                     to: calendar.startOfDay(for: now))!
-            await spotlight.index(upcoming.filter { $0.start < end }, calendar: calendar)
+            let searchable = filter.ignoringFocus
+            await spotlight.index(upcoming.filter { $0.start < end && !$0.event.source.isComputed && searchable.shows($0.event) },
+                                  calendar: calendar)
         }
     }
 }

@@ -38,6 +38,23 @@ struct PendingWritesBanner: View {
     @EnvironmentObject var pending: PendingWrites
 
     var body: some View {
+        if let notice = pending.notice {
+            HStack(alignment: .firstTextBaseline) {
+                Label(notice, systemImage: "lock.fill")
+                Spacer(minLength: 8)
+                Button { pending.dismissNotice() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 6)
+            .padding(.horizontal)
+            .background(.bar)
+            .accessibilityIdentifier("pendingWritesNotice")
+        }
         if !pending.isEmpty {
             let count = pending.writes.count
             Label(count == 1 ? "1 change waiting to sync" : "\(count) changes waiting to sync",

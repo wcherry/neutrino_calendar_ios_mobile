@@ -77,8 +77,8 @@ enum UpNext {
 
     /// The next timed event the filter shows, including one already under way. All-day events
     /// aren't "next": they are the day, not a thing in it.
-    static func next(_ upcoming: [EventOccurrence], filter: SourceFilter) -> EventOccurrence? {
-        upcoming.first { !$0.event.allDay && filter.shows($0.event.source) }
+    static func next(_ upcoming: [EventOccurrence], filter: EventFilter) -> EventOccurrence? {
+        upcoming.first { !$0.event.allDay && filter.shows($0.event) }
     }
 
     /// Siri's answer: "Stand-up is on now, until 10:30 AM." or "Next is Stand-up, tomorrow at

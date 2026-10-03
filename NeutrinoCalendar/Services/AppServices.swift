@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import NeutrinoCore
 import NeutrinoAuth
@@ -21,6 +22,8 @@ final class AppServices {
     let attachmentFiles: AttachmentFiles
     let keyProvisioning: KeyProvisioningService
     let surfaces: SystemSurfaces
+    let calendars: CalendarsService
+    private var cancellables: Set<AnyCancellable> = []
     let places: PlacesService
     let geofences: GeofenceMonitor
 
@@ -34,6 +37,9 @@ final class AppServices {
         let client = CalendarAPIClient(authService: auth)
         events = EventsService(client: client)
         tasks = TasksService(client: client)
+        // Hidden calendars, colours and holidays, from the last list kept on disk until the
+        // server's arrives; and tasks with a due date, drawn on the calendar.
+        calendars = CalendarsService(client: client)
         attachmentFiles = AttachmentFiles(client: client)
         keyProvisioning = KeyProvisioningService(authService: auth)
         surfaces = SystemSurfaces(events: events, isSignedIn: { [weak auth] in auth?.isAuthenticated == true })
@@ -45,6 +51,10 @@ final class AppServices {
         notifications = ReminderNotifications()
         notifications.reminders = reminders
         notifications.onOpen = { [weak router] id in router?.open(reminderID: id) }
+        notifications.isHidden = { [weak events] reminder in
+            guard let events, let eventID = reminder.linkedEventId else { return false }
+            return events.isInHiddenCalendar(eventID: eventID)
+        }
         notifications.tasks = tasks
         notifications.onOpenTask = { [weak router] id in router?.open(taskID: id) }
         notifications.configure()
@@ -63,8 +73,14 @@ final class AppServices {
             return auth.accessToken()
         })
         sync = CalendarSync(client: client, signals: signals, pending: PendingWrites(),
-                            events: events, reminders: reminders, tasks: tasks, places: places,
-                            surfaces: surfaces)
+                            events: events, reminders: reminders, tasks: tasks, calendars: calendars,
+                            places: places, surfaces: surfaces)
+        calendars.$calendars
+            .sink { [weak events] list in Task { await events?.setCalendars(list) } }
+            .store(in: &cancellables)
+        tasks.$tasks
+            .sink { [weak events] list in events?.setTasks(list) }
+            .store(in: &cancellables)
         sync.observe(network)
     }
 }

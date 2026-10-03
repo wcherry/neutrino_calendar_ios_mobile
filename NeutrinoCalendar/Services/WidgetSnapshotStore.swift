@@ -47,12 +47,12 @@ final class WidgetSnapshotStore {
 
     // MARK: - Building
 
-    /// The snapshot for `occurrences`, fetched from the first of this month: what the Focus
-    /// filter shows, from the start of today for `WidgetSnapshot.horizonDays`, plus the busy days
-    /// of this month and next.
+    /// The snapshot for `occurrences`, fetched from the first of this month: what the calendars
+    /// and the Focus filter show, from the start of today for `WidgetSnapshot.horizonDays`, plus
+    /// the busy days of this month and next. Each event carries its calendar's colour.
     static func build(_ occurrences: [EventOccurrence], now: Date, calendar: Calendar,
-                      filter: SourceFilter, limit: Int = 100) -> WidgetSnapshot {
-        let shown = occurrences.filter { filter.shows($0.event.source) }
+                      filter: EventFilter, limit: Int = 100) -> WidgetSnapshot {
+        let shown = occurrences.filter { filter.shows($0.event) }
         let today = calendar.startOfDay(for: now)
         let horizon = calendar.date(byAdding: .day, value: WidgetSnapshot.horizonDays, to: today)!
 
@@ -67,7 +67,8 @@ final class WidgetSnapshotStore {
                             start: occurrence.start, end: occurrence.end, allDay: occurrence.event.allDay,
                             firstDay: WidgetSnapshot.dayKey(range.first, calendar: calendar),
                             lastDay: WidgetSnapshot.dayKey(range.last, calendar: calendar),
-                            location: occurrence.event.location.flatMap { $0.isEmpty ? nil : $0 })
+                            location: occurrence.event.location.flatMap { $0.isEmpty ? nil : $0 },
+                            color: filter.rules.color(of: occurrence.event))
             }
 
         let firstOfMonth = EventsService.firstOfMonth(today, calendar: calendar)
@@ -84,6 +85,6 @@ final class WidgetSnapshotStore {
 
         return WidgetSnapshot(signedIn: true, generatedAt: now, timeZone: calendar.timeZone.identifier,
                               firstWeekday: calendar.firstWeekday, events: Array(events), busyDays: busy,
-                              filterSummary: filter.summary)
+                              filterSummary: filter.focus.summary)
     }
 }

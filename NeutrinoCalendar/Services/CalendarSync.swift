@@ -167,6 +167,7 @@ final class CalendarSync: ObservableObject {
     private let events: EventsService
     private let reminders: RemindersService
     private let tasks: TasksService
+    private let calendars: CalendarsService?
     private let places: PlacesService?
     private let surfaces: SystemSurfaces?
     private var cancellables: Set<AnyCancellable> = []
@@ -178,13 +179,15 @@ final class CalendarSync: ObservableObject {
 
     init(client: CalendarAPIClient, signals: CalendarSignalsClient, pending: PendingWrites,
          events: EventsService, reminders: RemindersService, tasks: TasksService,
-         places: PlacesService? = nil, surfaces: SystemSurfaces? = nil) {
+         calendars: CalendarsService? = nil, places: PlacesService? = nil,
+         surfaces: SystemSurfaces? = nil) {
         self.client = client
         self.signals = signals
         self.pending = pending
         self.events = events
         self.reminders = reminders
         self.tasks = tasks
+        self.calendars = calendars
         self.places = places
         self.surfaces = surfaces
         events.pending = pending
@@ -248,11 +251,14 @@ final class CalendarSync: ObservableObject {
 
     /// Something changed elsewhere.
     func refresh() async {
+        // Calendars aren't in the changes feed, and there are few: listed again every time.
+        await calendars?.reload()
         await events.pullChanges()
         await reminders.reload()
-        // Tasks and places load at launch, not only when the Tasks tab opens: arrival alerts are
-        // planned from them. The places are ciphertext and change rarely, but a place renamed or
-        // moved on the web has to reach the regions this phone watches.
+        // Tasks and places load at launch, not only when the Tasks tab opens: tasks are drawn
+        // on the calendar, and arrival alerts are planned from both. The places are ciphertext
+        // and change rarely, but a place renamed or moved on the web has to reach the regions
+        // this phone watches.
         await tasks.reload()
         await places?.reload()
         await surfaces?.refresh()

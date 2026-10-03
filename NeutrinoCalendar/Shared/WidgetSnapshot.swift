@@ -18,6 +18,9 @@ struct WidgetEvent: Codable, Hashable, Identifiable {
     let firstDay: String
     let lastDay: String
     let location: String?
+    /// Its calendar's colour, `#rrggbb`; nil draws it in the accent colour. Absent from a
+    /// snapshot written before calendars, which still decodes.
+    var color: String? = nil
 }
 
 // MARK: - WidgetSnapshot
