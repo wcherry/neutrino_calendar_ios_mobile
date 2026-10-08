@@ -81,92 +81,9 @@ struct SaveTaskPlaceRequest: Encodable, Equatable {
 
 // MARK: - PlaceEnvelope
 
-/// The field-level envelope a saved place travels in. The first end-to-end encrypted data in
-/// Calendar, and built only from primitives every client already shares with Drive, so the web
-/// needs no new cryptography to read it:
-///
-/// ```
-/// encryptedPayload = JSON { "v": 1, "keyVersion": <int>, "key": <sealed DEK>, "data": <ciphertext> }
-///   key  = crypto_box_seal(DEK, account public key), base64url without padding
-///          (web: encryptFileKey · Swift: DriveFileCrypto.seal)
-///   data = one secretstream push of the JSON payload with the DEK, base64url without padding
-///          (web: encryptMetadata · Swift: DriveFileCrypto.encrypt)
-/// payload        = JSON { "name": String, "lat": Double, "lng": Double, "radiusM": Int }
-/// ```
-///
-/// A fresh 32-byte DEK per write, sealed to the active keyring version, which the envelope names
-/// so a place saved before a key rotation still opens. Fields a later version adds to the payload
-/// are ignored, not rejected; a different `v` is.
-///
-/// The spec, and the fixture both sides test against, are in `agent_docs/task-geofencing.md` and
-/// `NeutrinoCalendarTests/Fixtures/place_envelope_vectors.json`. Changing this is a wire-format
-/// change across the web, this app and the server.
-enum PlaceEnvelope {
-    static let version = 1
-
-    struct Payload: Codable, Equatable {
-        var name: String
-        var lat: Double
-        var lng: Double
-        var radiusM: Int
-    }
-
-    private struct Envelope: Codable {
-        let v: Int
-        let keyVersion: Int
-        let key: String
-        let data: String
-    }
-
-    enum Failure: LocalizedError, Equatable {
-        case malformed
-        case unsupportedVersion(Int)
-
-        var errorDescription: String? {
-            switch self {
-            case .malformed:
-                return "A saved place is damaged and can't be read."
-            case .unsupportedVersion:
-                return "A saved place was written by a newer version of Neutrino. Update Calendar to read it."
-            }
-        }
-    }
-
-    static func seal(_ payload: Payload, publicKey: [UInt8], keyVersion: Int) throws -> String {
-        let dek = DriveFileCrypto.newDEK()
-        let json = try JSONEncoder.sorted.encode(payload)
-        let envelope = Envelope(v: version, keyVersion: keyVersion,
-                                key: try DriveFileCrypto.seal(dek: dek, toPublicKey: publicKey),
-                                data: Base64URL.encode([UInt8](try DriveFileCrypto.encrypt(json, dek: dek))))
-        return String(decoding: try JSONEncoder.sorted.encode(envelope), as: UTF8.self)
-    }
-
-    /// The key version `encrypted` was sealed to, so the caller can find that keypair.
-    static func keyVersion(of encrypted: String) throws -> Int {
-        try envelope(encrypted).keyVersion
-    }
-
-    static func open(_ encrypted: String, publicKey: [UInt8], secretKey: [UInt8]) throws -> Payload {
-        let envelope = try envelope(encrypted)
-        let dek = try DriveFileCrypto.openDEK(envelope.key, publicKey: publicKey, secretKey: secretKey)
-        guard let data = Base64URL.decode(envelope.data) else { throw Failure.malformed }
-        let json = try DriveFileCrypto.decrypt(Data(data), dek: dek)
-        guard let payload = try? JSONDecoder().decode(Payload.self, from: json) else { throw Failure.malformed }
-        return payload
-    }
-
-    private static func envelope(_ encrypted: String) throws -> Envelope {
-        guard let data = encrypted.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw Failure.malformed
-        }
-        // Checked before decoding the rest: a later version may change the other fields.
-        guard let v = object["v"] as? Int else { throw Failure.malformed }
-        guard v == version else { throw Failure.unsupportedVersion(v) }
-        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else { throw Failure.malformed }
-        return envelope
-    }
-}
+// The envelope a saved place travels in is `PlaceEnvelope` in NeutrinoCrypto
+// (neutrino_shared_ios), shared by every app that reads places and tested there against the
+// vectors the web also opens.
 
 extension TaskPlace {
     init(id: String, payload: PlaceEnvelope.Payload) {
@@ -176,14 +93,5 @@ extension TaskPlace {
 
     var payload: PlaceEnvelope.Payload {
         PlaceEnvelope.Payload(name: name, lat: point.latitude, lng: point.longitude, radiusM: point.radius)
-    }
-}
-
-private extension JSONEncoder {
-    /// Sorted keys, so the same value always encodes the same way; the tests compare bytes.
-    static var sorted: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        return encoder
     }
 }

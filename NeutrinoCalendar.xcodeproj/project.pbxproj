@@ -87,7 +87,6 @@
 		B19146EE856216CBA7FA6DA1 /* TaskSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FE2BCF5C7C8975748E25003 /* TaskSpeech.swift */; };
 		B231D4A5B4AC6F7AD18B64E9 /* DriveFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E37216B50DD25F28A871BD1 /* DriveFile.swift */; };
 		B369D156C68834BA940B1EBA /* NeutrinoCore in Frameworks */ = {isa = PBXBuildFile; productRef = F09C72A306B3DB398526B07D /* NeutrinoCore */; };
-		B4389FB9642850CDC8F1FF22 /* place_envelope_vectors.json in Resources */ = {isa = PBXBuildFile; fileRef = CF169534B9475538C50D68BA /* place_envelope_vectors.json */; };
 		B490B5591A4159E6D7FDBBD0 /* BackgroundRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0901C53EB6B7295613313A5E /* BackgroundRefresh.swift */; };
 		B5A3832D71BFA628A07ACF11 /* CalendarGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18A8FC296625110ACA179B10 /* CalendarGrid.swift */; };
 		B5DCD9318218E37854E3C7DC /* WeekStart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5B947700D16826C6C357CB /* WeekStart.swift */; };
@@ -261,7 +260,6 @@
 		CA0A11629A835F45A8A03C73 /* WeekStartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekStartTests.swift; sourceTree = "<group>"; };
 		CA7859506E2C5909CB080A08 /* EventDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDraft.swift; sourceTree = "<group>"; };
 		CE8B8B658D0BE549F8E958C2 /* EncryptionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionSection.swift; sourceTree = "<group>"; };
-		CF169534B9475538C50D68BA /* place_envelope_vectors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = place_envelope_vectors.json; sourceTree = "<group>"; };
 		CFB52CF3B93D7B1380ABA136 /* EventEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventEditorView.swift; sourceTree = "<group>"; };
 		D404E4B379B9B1C390678844 /* CalendarEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEvent.swift; sourceTree = "<group>"; };
 		D798CAD2636BE695CE26A4EC /* TimeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeGridView.swift; sourceTree = "<group>"; };
@@ -341,7 +339,6 @@
 		1EAEAF68E5F1A9A8C8B269A6 /* Fixtures */ = {
 			isa = PBXGroup;
 			children = (
-				CF169534B9475538C50D68BA /* place_envelope_vectors.json */,
 				248A092CAEDBF458C048DFB9 /* recurrence_vectors.json */,
 				3FD504B7D89260FD58455A3B /* repeat_rule_vectors.json */,
 				FCB92F8071B9266B8D136244 /* smart_add_vectors.json */,
@@ -664,7 +661,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B4389FB9642850CDC8F1FF22 /* place_envelope_vectors.json in Resources */,
 				9FF05423B33C66F617262BFE /* recurrence_vectors.json in Resources */,
 				D7A51DAF8EC629FD78DE2DDA /* repeat_rule_vectors.json in Resources */,
 				CC5E7C15E44BB0F75D730D6A /* smart_add_vectors.json in Resources */,
