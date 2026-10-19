@@ -1,4 +1,5 @@
 import SwiftUI
+import NeutrinoCore
 
 // MARK: - Edit conflict alert
 
@@ -31,9 +32,10 @@ extension View {
     }
 }
 
-// MARK: - Pending writes banner
+// MARK: - Pending writes notice
 
-/// "2 changes waiting to sync", while edits made offline are queued.
+/// Why changes made offline were discarded, until dismissed. The queue itself — "2 changes
+/// waiting to sync", offline, syncing — is the app-wide `ConnectivityBanner`'s.
 struct PendingWritesBanner: View {
     @EnvironmentObject var pending: PendingWrites
 
@@ -55,17 +57,17 @@ struct PendingWritesBanner: View {
             .background(.bar)
             .accessibilityIdentifier("pendingWritesNotice")
         }
-        if !pending.isEmpty {
-            let count = pending.writes.count
-            Label(count == 1 ? "1 change waiting to sync" : "\(count) changes waiting to sync",
-                  systemImage: "arrow.triangle.2.circlepath")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity)
-                .background(.bar)
-                .accessibilityIdentifier("pendingWritesBanner")
-        }
+    }
+}
+
+// MARK: - Connectivity banner
+
+extension PendingWrites {
+    /// The queue in the shared banner's terms.
+    var activity: SyncActivity {
+        if isReplaying { return .syncing(remaining: writes.count) }
+        if let lastFailure, !writes.isEmpty { return .failed(lastFailure) }
+        return .idle
     }
 }
 

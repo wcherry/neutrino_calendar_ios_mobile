@@ -39,13 +39,17 @@ final class PendingWrites: ObservableObject {
     /// Why queued changes were discarded, until the user dismisses it: a write the server
     /// refused for good (403, the calendar is read-only) would otherwise vanish without a word.
     @Published var notice: String?
+    /// True while `replay` is sending, for the connectivity banner's "Syncing…".
+    @Published private(set) var isReplaying = false
+    /// Why the last replay stopped with writes still queued, while online — a server error, or a
+    /// request that never got an answer. Cleared when a replay starts.
+    @Published private(set) var lastFailure: String?
 
     /// A write the server keeps failing with a 5xx is dropped after this many tries, so one bad
     /// write can't hold up every one queued behind it.
     static let maxAttempts = 5
 
     private let fileURL: URL
-    private var isReplaying = false
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NeutrinoCalendar",
                                 category: "PendingWrites")
 
@@ -75,6 +79,7 @@ final class PendingWrites: ObservableObject {
     /// Forgets every queued write, for sign-out: the next account must not send this one's edits.
     func clear() {
         writes = []
+        lastFailure = nil
         dismissNotice()
         save()
     }
@@ -85,18 +90,25 @@ final class PendingWrites: ObservableObject {
     func replay(using client: CalendarAPIClient) async -> Int {
         guard !isReplaying else { return 0 }
         isReplaying = true
+        lastFailure = nil
         defer { isReplaying = false }
         var finished = 0
         while let write = writes.first {
             do {
                 try await client.replay(write)
             } catch let error as CalendarAPIError {
-                if error.isNetwork || error == .notAuthenticated { break }
+                if error.isNetwork || error == .notAuthenticated {
+                    if error.isNetwork { lastFailure = "The server couldn't be reached." }
+                    break
+                }
                 if case .serverError(let code) = error, code >= 500 {
                     guard writes.first?.id == write.id else { break }
                     writes[0].attempts += 1
                     save()
-                    if writes[0].attempts < Self.maxAttempts { break }
+                    if writes[0].attempts < Self.maxAttempts {
+                        lastFailure = "Server error (\(code))."
+                        break
+                    }
                 }
                 // A 404 means it was deleted elsewhere; any other 4xx is a write the server will
                 // never take. Either way, sending it again cannot help. A 403 is an event whose
