@@ -2,8 +2,8 @@ import SwiftUI
 
 // MARK: - CalendarsSettingsView
 
-/// Settings › Calendars: every calendar, shown or hidden at a tap, and holiday calendars by
-/// country. The choices are calendars on the server, so they match the web on every device.
+/// Settings › Calendars: every calendar, shown or hidden at a tap, the calendars connected
+/// accounts sync into, and holiday calendars by country. The choices are calendars on the server, so they match the web on every device.
 struct CalendarsSettingsView: View {
     @EnvironmentObject var calendars: CalendarsService
     @EnvironmentObject var events: EventsService
@@ -36,6 +36,22 @@ struct CalendarsSettingsView: View {
                 Text("My Calendars")
             } footer: {
                 Text("A hidden calendar's events don't show anywhere on this iPhone: the calendar, widgets, Spotlight and alerts. It's hidden on the web too.")
+            }
+
+            if !calendars.syncedCalendars.isEmpty {
+                Section {
+                    ForEach(calendars.syncedCalendars) { calendar in
+                        NavigationLink {
+                            CalendarEditView(calendar: calendar)
+                        } label: {
+                            CalendarRow(calendar: calendar)
+                        }
+                    }
+                } header: {
+                    Text("Synced Calendars")
+                } footer: {
+                    Text("Events from your Google, Outlook and iCloud accounts, drawn in their calendar's colour. Tap one to change it.")
+                }
             }
 
             Section {

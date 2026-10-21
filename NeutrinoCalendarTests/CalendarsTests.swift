@@ -463,6 +463,23 @@ final class CalendarsServiceTests: XCTestCase {
         XCTAssertEqual(service.holidayCalendars.map(\.id), ["h"])
     }
 
+    func testSyncedCalendarsAreListedApartAndRecolouredLikeAnyOther() async throws {
+        MockURLProtocol.respond(status: 200, body: ##"{"calendars":[{"id":"p","name":"Personal","color":"#3b82f6","visible":true,"readOnly":false,"kind":"local","isDefault":true},{"id":"g","name":"Google Calendar","color":"#16a34a","visible":true,"readOnly":false,"kind":"connection","isDefault":false,"source":"google"}]}"##)
+        let service = makeService()
+        await service.reload()
+        XCTAssertEqual(service.ownCalendars.map(\.id), ["p"])
+        XCTAssertEqual(service.syncedCalendars.map(\.id), ["g"])
+
+        let google = try XCTUnwrap(service.calendar(id: "g"))
+        var edited = google
+        edited.color = "#8b5cf6"
+        MockURLProtocol.respond(status: 200, body: ##"{"id":"g","name":"Google Calendar","color":"#8b5cf6","visible":true,"readOnly":false,"kind":"connection","isDefault":false,"source":"google"}"##)
+        _ = try await service.update(google, to: edited)
+        XCTAssertEqual(MockURLProtocol.lastRequest?.httpMethod, "PATCH")
+        XCTAssertEqual(MockURLProtocol.lastJSON?["color"] as? String, "#8b5cf6")
+        XCTAssertEqual(service.calendar(id: "g")?.color, "#8b5cf6")
+    }
+
     func testSignOutForgetsTheCache() async {
         MockURLProtocol.respond(status: 200, body: list)
         let service = makeService()
