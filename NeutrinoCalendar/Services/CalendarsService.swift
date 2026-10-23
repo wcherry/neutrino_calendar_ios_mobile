@@ -35,8 +35,10 @@ final class CalendarsService: ObservableObject {
     var defaultCalendar: UserCalendar? { calendars.first(where: \.isDefault) ?? writable.first }
     var writable: [UserCalendar] { CalendarRules.writable(calendars) }
     var holidayCalendars: [UserCalendar] { calendars.filter { $0.kind == .holidays } }
-    /// Everything but holidays, which Settings lists in a section of their own.
-    var ownCalendars: [UserCalendar] { calendars.filter { $0.kind != .holidays } }
+    /// The calendars a connected account's events sync into, one per provider.
+    var syncedCalendars: [UserCalendar] { calendars.filter { $0.kind == .connection } }
+    /// Everything but holidays and synced calendars, which Settings lists in sections of their own.
+    var ownCalendars: [UserCalendar] { calendars.filter { $0.kind != .holidays && $0.kind != .connection } }
 
     func calendar(id: String?) -> UserCalendar? { id.flatMap { id in calendars.first { $0.id == id } } }
 
