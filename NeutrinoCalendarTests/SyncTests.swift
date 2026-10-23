@@ -1,4 +1,5 @@
 import XCTest
+import NeutrinoCore
 @testable import NeutrinoCalendar
 
 // MARK: - Helpers
@@ -317,6 +318,20 @@ final class PendingWritesTests: XCTestCase {
         }
         await queue.replay(using: mockClient())
         XCTAssertTrue(queue.isEmpty)
+    }
+
+    func testAServerErrorShowsAsAFailedSyncUntilTheNextReplay() async {
+        let queue = scratchQueue()
+        queue.enqueue(PendingWrite(method: "DELETE", path: "/api/v1/calendar/events/a"))
+        MockURLProtocol.respond(status: 500, body: "{}")
+
+        await queue.replay(using: mockClient())
+        XCTAssertEqual(queue.activity, .failed("Server error (500)."))
+
+        MockURLProtocol.respond(status: 204, body: "")
+        await queue.replay(using: mockClient())
+        XCTAssertTrue(queue.isEmpty)
+        XCTAssertEqual(queue.activity, .idle)
     }
 
     func testClearForgetsEverything() {

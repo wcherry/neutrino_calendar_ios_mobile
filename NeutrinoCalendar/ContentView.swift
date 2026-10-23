@@ -1,9 +1,14 @@
 import SwiftUI
 import NeutrinoAuth
+import NeutrinoCore
+import NeutrinoUI
 
 /// The tab shell from Epic 1. Each tab is an empty state that names the epic that fills it.
 struct ContentView: View {
     @EnvironmentObject var router: AppRouter
+    @EnvironmentObject var network: NetworkMonitor
+    @EnvironmentObject var sync: CalendarSync
+    @EnvironmentObject var pending: PendingWrites
 
     enum Tab: Hashable {
         case calendar, reminders, tasks, settings
@@ -47,6 +52,10 @@ struct ContentView: View {
             .tabItem { Label("Settings", systemImage: "gear") }
             .tag(Tab.settings)
         }
+        .connectivityBanner(isOnline: network.isOnline,
+                            pendingChanges: pending.writes.count,
+                            activity: pending.activity,
+                            onRetry: { Task { await sync.catchUp() } })
     }
 }
 
@@ -62,5 +71,6 @@ struct ContentView: View {
                                             cacheURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview-calendars.json")))
         .environmentObject(PlacesService(client: CalendarAPIClient(token: { nil })))
         .environmentObject(GeofenceMonitor())
+        .environmentObject(NetworkMonitor(autoStart: false))
         .environmentObject(PendingWrites(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview-pending.json")))
 }

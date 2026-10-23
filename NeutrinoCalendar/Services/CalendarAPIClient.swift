@@ -419,7 +419,7 @@ final class CalendarAPIClient {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await session.data(for: request, retry: .default)
         } catch {
             logger.error("network error \(path, privacy: .public): \(error, privacy: .public)")
             throw CalendarAPIError.networkError(error.localizedDescription)
