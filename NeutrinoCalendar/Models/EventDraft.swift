@@ -15,6 +15,8 @@ struct CreateEventRequest: Encodable, Equatable {
     let timezone: String?
     /// Absent, the default calendar.
     var calendarId: String? = nil
+    /// Absent, busy.
+    var availability: EventAvailability? = nil
 }
 
 /// `UpdateEventRequest`: every field optional, and an absent one is left alone.
@@ -35,6 +37,7 @@ struct UpdateEventRequest: Encodable, Equatable {
     var timezone: String?
     /// Moves the event, a series with its exceptions. One occurrence can't move on its own.
     var calendarId: String?
+    var availability: EventAvailability?
 }
 
 // MARK: - EventDraft
@@ -56,6 +59,7 @@ struct EventDraft: Equatable {
     var attendees: [String] = []
     /// The calendar it goes in. Nil for a new event means the default calendar.
     var calendarId: String?
+    var availability: EventAvailability = .busy
 
     /// An hour, the length a new event gets, as on the web.
     static let defaultLength: TimeInterval = 60 * 60
@@ -109,6 +113,7 @@ struct EventDraft: Equatable {
         repeatOption = RepeatOption(rule: event.recurrenceRule)
         attendees = event.attendees
         calendarId = event.calendarId
+        availability = event.availability
     }
 
     /// The form for editing the occurrences of `occurrence` that `scope` names:
@@ -239,7 +244,9 @@ struct EventDraft: Equatable {
             recurrenceRule: repeatOption.rule,
             attendees: attendees,
             timezone: wireTimeZone,
-            calendarId: calendarId
+            calendarId: calendarId,
+            // Busy is the server's default, so it isn't sent.
+            availability: availability == .busy ? nil : availability
         )
     }
 
@@ -260,6 +267,7 @@ struct EventDraft: Equatable {
         if repeatOption != original.repeatOption { request.recurrenceRule = repeatOption.rule ?? "" }
         if attendees != original.attendees { request.attendees = attendees }
         if let calendarId, calendarId != original.calendarId { request.calendarId = calendarId }
+        if availability != original.availability { request.availability = availability }
         return request
     }
 
@@ -296,6 +304,7 @@ extension CalendarEvent {
                   attendees: draft.attendees,
                   source: event.source,
                   timezone: draft.wireTimeZone,
-                  calendarId: draft.calendarId ?? event.calendarId)
+                  calendarId: draft.calendarId ?? event.calendarId,
+                  availability: draft.availability)
     }
 }

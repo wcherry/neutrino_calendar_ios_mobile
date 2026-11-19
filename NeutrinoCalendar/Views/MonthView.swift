@@ -52,10 +52,12 @@ struct MonthView: View {
 
     /// A dot per event or task, in its colour, up to three. Days of the neighbouring months get
     /// none, since only this month is loaded.
-    private func dots(for day: Date) -> [Color] {
+    private func dots(for day: Date) -> [MonthDot] {
         guard calendar.isDate(day, equalTo: events.focus, toGranularity: .month) else { return [] }
         let rules = events.rules
-        return events.occurrences(on: day).prefix(3).map { EventStyle.color(of: $0, rules: rules) }
+        return events.occurrences(on: day).prefix(3).map {
+            MonthDot(color: EventStyle.color(of: $0, rules: rules), availability: $0.availability)
+        }
     }
 
     private var swipe: some Gesture {
@@ -103,6 +105,12 @@ struct MonthView: View {
 
 // MARK: - MonthDayCell
 
+/// One event's dot on a month day.
+struct MonthDot {
+    let color: Color
+    let availability: EventAvailability
+}
+
 /// One day of the month grid: its number, circled when it is today or selected, and dots for
 /// its events.
 struct MonthDayCell: View {
@@ -111,7 +119,7 @@ struct MonthDayCell: View {
     let isToday: Bool
     let isSelected: Bool
     /// One per event shown, up to three, in its colour.
-    let dots: [Color]
+    let dots: [MonthDot]
     let compact: Bool
 
     var body: some View {
@@ -126,8 +134,8 @@ struct MonthDayCell: View {
                     }
                 }
             HStack(spacing: 3) {
-                ForEach(Array(dots.enumerated()), id: \.offset) { _, color in
-                    Circle().fill(color).frame(width: 5, height: 5)
+                ForEach(Array(dots.enumerated()), id: \.offset) { _, dot in
+                    AvailabilityDot(availability: dot.availability, color: dot.color).frame(width: 5, height: 5)
                 }
             }
             .frame(height: 5)

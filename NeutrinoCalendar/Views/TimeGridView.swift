@@ -90,7 +90,8 @@ struct TimeGridView: View {
                                     .padding(.leading, occurrence.task == nil ? 3 : 17)
                                     .padding(.trailing, 3)
                                     .padding(.vertical, 2)
-                                    .background(color.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
+                                    .background(AvailabilityFill(availability: occurrence.availability,
+                                                                 color: color, tint: 0.2))
                             }
                             .buttonStyle(.plain)
                             // Beside the link, not inside it, so a tick doesn't also open the task.
@@ -256,9 +257,10 @@ private struct EventBlock: View {
             Spacer(minLength: 0)
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(color.opacity(0.18))
+        .background(AvailabilityFill(availability: occurrence.availability, color: color))
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .accessibilityElement(children: .combine)
+        .accessibilityValue(occurrence.availability == .busy ? "" : occurrence.availability.label)
     }
 }
 

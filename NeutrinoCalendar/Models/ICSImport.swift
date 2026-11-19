@@ -57,6 +57,8 @@ enum ICSImport {
         draft.title = event["SUMMARY"].map { unescape($0.value) } ?? ""
         draft.location = event["LOCATION"].map { unescape($0.value) } ?? ""
         draft.notes = event["DESCRIPTION"].map { unescape($0.value) } ?? ""
+        draft.availability = .fromICal(transp: event["TRANSP"]?.value,
+                                       busyStatus: event["X-MICROSOFT-CDO-BUSYSTATUS"]?.value)
         draft.allDay = start.isDate
         draft.timeZone = start.isDate ? calendar.timeZone : start.zone
 
