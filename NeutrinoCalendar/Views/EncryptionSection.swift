@@ -38,6 +38,11 @@ struct EncryptionSection: View {
                 Button { flow = .restore } label: {
                     Label("Restore From Recovery Kit", systemImage: "text.book.closed")
                 }
+                // The shared import screen: the key file the web app exports, its PIN-protected
+                // QR code, or the JSON pasted in.
+                Button { flow = .importKey } label: {
+                    Label("Import Key File or QR Code", systemImage: "qrcode")
+                }
             }
         } header: {
             Text("Encryption")
@@ -58,7 +63,7 @@ struct EncryptionSection: View {
 // MARK: - EncryptionFlow
 
 enum EncryptionFlow: String, Identifiable {
-    case setUp, pair, restore
+    case setUp, pair, restore, importKey
     var id: String { rawValue }
 }
 
@@ -79,6 +84,8 @@ extension View {
                 switch shown {
                 case .pair:
                     DevicePairingView(isPresented: isShown) { onClose() }
+                case .importKey:
+                    KeyImportView(isPresented: isShown)
                 default:
                     RecoveryKitRestoreView(service: provisioning, isPresented: isShown) { onClose() }
                 }
