@@ -119,6 +119,14 @@ struct EventEditorView: View {
                 // Times are entered in the event's zone, so 09:00 in New York is 09:00 there.
                 .environment(\.timeZone, draft.timeZone)
 
+                Section {
+                    Picker("Show As", selection: $draft.availability) {
+                        ForEach(EventAvailability.allCases) { availability in
+                            Text(availability.label).tag(availability)
+                        }
+                    }
+                }
+
                 if scope == .this {
                     Section {
                         Label(RecurrenceScope.this.label(.event), systemImage: "repeat")

@@ -57,6 +57,18 @@ struct EventDetailView: View {
                     Text(EventFormatting.dateSummary(occurrence))
                     Text(EventFormatting.timeSummary(occurrence))
                         .foregroundStyle(.secondary)
+                    if !event.source.isComputed {
+                        HStack(spacing: 6) {
+                            AvailabilityFill(availability: event.availability,
+                                             color: Color(hex: calendar?.color ?? "") ?? .accentColor,
+                                             cornerRadius: 3, tint: 0.35)
+                                .frame(width: 18, height: 11)
+                                .accessibilityHidden(true)
+                            Text("Show as \(event.availability.label)")
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    }
                     if let original = EventFormatting.originalTimeZoneSummary(occurrence) {
                         Text(original)
                             .font(.footnote)

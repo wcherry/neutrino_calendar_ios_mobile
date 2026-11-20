@@ -238,8 +238,11 @@ struct EventRowView: View {
             if let task = occurrence.task {
                 TaskCheckbox(task: task)
             } else {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(EventStyle.color(of: occurrence, rules: events.rules))
+                // Solid, as before, for busy and away; striped or hollow when the time isn't taken.
+                let availability = occurrence.availability
+                AvailabilityFill(availability: availability == .away ? .busy : availability,
+                                 color: EventStyle.color(of: occurrence, rules: events.rules),
+                                 cornerRadius: 2, tint: 1)
                     .frame(width: 4)
                     .padding(.vertical, 2)
             }
@@ -261,7 +264,7 @@ struct EventRowView: View {
                         SourceBadge(text: badge)
                     }
                 }
-                Text(occurrence.task == nil ? EventFormatting.timeSummary(occurrence)
+                Text(occurrence.task == nil ? EventStyle.timeSummary(occurrence)
                                             : EventStyle.taskTimeSummary(occurrence))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -293,6 +296,13 @@ enum EventStyle {
     /// A task's row in a list sits on its own tint.
     static func rowBackground(_ occurrence: EventOccurrence) -> Color? {
         occurrence.task == nil ? nil : taskColor.opacity(0.12)
+    }
+
+    /// An event's time, and how it shows the time when that isn't busy: "9:00 – 10:00 AM · Free".
+    static func timeSummary(_ occurrence: EventOccurrence) -> String {
+        let time = EventFormatting.timeSummary(occurrence)
+        let availability = occurrence.availability
+        return availability == .busy ? time : "\(time) · \(availability.label)"
     }
 
     /// "Task due" or "Due 3:00 PM".

@@ -37,6 +37,8 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
     /// The calendar it is in (`UserCalendar`). Nil from a server older than calendars, which
     /// puts everything in the default calendar.
     let calendarId: String?
+    /// How the event shows the user's time. Busy from a server older than availability.
+    let availability: EventAvailability
 
     /// Whether this is a series: an event with a rule. An exception is never one.
     var isRecurring: Bool { !(recurrenceRule ?? "").isEmpty }
@@ -44,7 +46,7 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case id, title, description, startTime, endTime, allDay, location, recurrenceRule
         case attendees, source, createdAt, updatedAt, timezone
-        case recurringEventId, originalStartTime, cancelled, calendarId
+        case recurringEventId, originalStartTime, cancelled, calendarId, availability
     }
 
     init(from decoder: Decoder) throws {
@@ -66,6 +68,8 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
         originalStart = (try? c.decodeIfPresent(String.self, forKey: .originalStartTime)).flatMap(ServerDate.parse)
         cancelled = try c.decodeIfPresent(Bool.self, forKey: .cancelled) ?? false
         calendarId = try c.decodeIfPresent(String.self, forKey: .calendarId)
+        availability = (try? c.decodeIfPresent(String.self, forKey: .availability))
+            .flatMap(EventAvailability.init(rawValue:)) ?? .busy
     }
 
     /// For tests and previews.
@@ -73,7 +77,7 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
          allDay: Bool = false, location: String? = nil, recurrenceRule: String? = nil,
          attendees: [String] = [], source: EventSource = .local, timezone: String? = nil,
          recurringEventId: String? = nil, originalStart: Date? = nil, cancelled: Bool = false,
-         calendarId: String? = nil) {
+         calendarId: String? = nil, availability: EventAvailability = .busy) {
         self.id = id
         self.title = title
         self.description = description
@@ -91,6 +95,7 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
         self.originalStart = originalStart
         self.cancelled = cancelled
         self.calendarId = calendarId
+        self.availability = availability
     }
 
     /// `event` with other times and rule: an occurrence of it, or the series as it runs from one.
@@ -99,7 +104,8 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
                   allDay: event.allDay, location: event.location, recurrenceRule: recurrenceRule,
                   attendees: event.attendees, source: event.source, timezone: event.timezone,
                   recurringEventId: event.recurringEventId, originalStart: event.originalStart,
-                  cancelled: event.cancelled, calendarId: event.calendarId)
+                  cancelled: event.cancelled, calendarId: event.calendarId,
+                  availability: event.availability)
     }
 
     private static func decodeDate(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) throws -> Date {
@@ -114,6 +120,41 @@ struct CalendarEvent: Decodable, Identifiable, Hashable {
 
 struct ListEventsResponse: Decodable {
     let events: [CalendarEvent]
+}
+
+// MARK: - EventAvailability
+
+/// How an event shows the user's time, as the server's `Availability` writes it
+/// (`neutrino/src/calendar/events/availability.rs`). Shaded on the calendar by `AvailabilityFill`.
+enum EventAvailability: String, Codable, CaseIterable, Identifiable {
+    case busy, free, tentative
+    /// Out of office.
+    case away
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .busy:      return "Busy"
+        case .free:      return "Free"
+        case .tentative: return "Tentative"
+        case .away:      return "Away"
+        }
+    }
+
+    /// From an `.ics` event's `TRANSP` and Outlook's `X-MICROSOFT-CDO-BUSYSTATUS`. `TRANSP` wins
+    /// when they disagree: Apple Calendar edits only it and leaves the other behind. Must match
+    /// `Availability::from_ical` on the server.
+    static func fromICal(transp: String?, busyStatus: String?) -> EventAvailability {
+        let transp = transp?.trimmingCharacters(in: .whitespaces).uppercased()
+        if transp == "TRANSPARENT" { return .free }
+        switch busyStatus?.trimmingCharacters(in: .whitespaces).uppercased() {
+        case "TENTATIVE": return .tentative
+        case "OOF":       return .away
+        case "FREE":      return transp == nil ? .free : .busy
+        default:          return .busy
+        }
+    }
 }
 
 // MARK: - EventSource
